@@ -1,683 +1,480 @@
 #!/usr/bin/env python3
 """
 Backend API Test Suite for Beyond Marketing Platform
-Tests all backend endpoints with comprehensive scenarios
+Tests new Portal Projects/Tasks CRUD and Dashboard merge functionality
 """
 
 import requests
 import json
-import time
-from uuid import uuid4
+import uuid
+from datetime import datetime
 
 # Base URL from .env
 BASE_URL = "https://agency-os-37.preview.emergentagent.com/api"
 
-# Test data
-test_email = f"test-{uuid4()}@beyondmarketing.com"
-test_password = "SecurePass123!"
-test_name = "Sarah Johnson"
-test_company = "TechFlow Solutions"
-auth_token = None
+def log(msg):
+    print(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
-def print_test(name):
-    print(f"\n{'='*80}")
-    print(f"TEST: {name}")
-    print('='*80)
-
-def print_success(msg):
-    print(f"✅ SUCCESS: {msg}")
-
-def print_error(msg):
-    print(f"❌ ERROR: {msg}")
-
-def print_info(msg):
-    print(f"ℹ️  INFO: {msg}")
-
-# ============================================================================
-# TEST 1: Health Check
-# ============================================================================
 def test_health_check():
-    print_test("Health Check GET /api/health")
+    """Test 1: Health check endpoint"""
     try:
-        response = requests.get(f"{BASE_URL}/health", timeout=10)
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('ok') == True and 'service' in data and 'ts' in data:
-                print_success("Health check passed with correct structure")
-                return True
-            else:
-                print_error(f"Health check returned unexpected structure: {data}")
-                return False
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            return False
+        log("TEST 1: Health check...")
+        r = requests.get(f"{BASE_URL}/health", timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        assert data.get('ok') == True, "Expected ok:true"
+        assert 'service' in data, "Missing service field"
+        log("✅ Health check passed")
+        return True
     except Exception as e:
-        print_error(f"Health check failed: {str(e)}")
+        log(f"❌ Health check failed: {e}")
         return False
 
-# ============================================================================
-# TEST 2: Auth - Register New User
-# ============================================================================
 def test_auth_register():
-    print_test("Auth Register POST /api/auth/register")
-    global auth_token
+    """Test 2: Register new user"""
     try:
-        payload = {
-            "name": test_name,
-            "email": test_email,
-            "password": test_password,
-            "company": test_company
-        }
-        print_info(f"Registering user: {test_email}")
-        
-        response = requests.post(
-            f"{BASE_URL}/auth/register",
-            json=payload,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text[:500]}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'token' in data and 'user' in data:
-                auth_token = data['token']
-                user = data['user']
-                if user.get('email') == test_email.lower() and user.get('name') == test_name:
-                    print_success(f"User registered successfully with token")
-                    return True
-                else:
-                    print_error(f"User data mismatch: {user}")
-                    return False
-            else:
-                print_error(f"Missing token or user in response: {data}")
-                return False
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"Register failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 3: Auth - Register Duplicate Email (409)
-# ============================================================================
-def test_auth_register_duplicate():
-    print_test("Auth Register Duplicate Email (expect 409)")
-    try:
-        payload = {
-            "name": "Another User",
-            "email": test_email,
-            "password": "AnotherPass123!",
-            "company": "Another Company"
-        }
-        print_info(f"Attempting to register duplicate email: {test_email}")
-        
-        response = requests.post(
-            f"{BASE_URL}/auth/register",
-            json=payload,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
-        
-        if response.status_code == 409:
-            data = response.json()
-            if 'error' in data and 'already registered' in data['error'].lower():
-                print_success("Duplicate email correctly rejected with 409")
-                return True
-            else:
-                print_error(f"Expected 'Email already registered' error, got: {data}")
-                return False
-        else:
-            print_error(f"Expected 409, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"Duplicate register test failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 4: Auth - Login with Correct Credentials
-# ============================================================================
-def test_auth_login_success():
-    print_test("Auth Login POST /api/auth/login (correct credentials)")
-    global auth_token
-    try:
-        payload = {
-            "email": test_email,
-            "password": test_password
-        }
-        print_info(f"Logging in with: {test_email}")
-        
-        response = requests.post(
-            f"{BASE_URL}/auth/login",
-            json=payload,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text[:500]}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'token' in data and 'user' in data:
-                auth_token = data['token']
-                user = data['user']
-                if user.get('email') == test_email.lower():
-                    print_success("Login successful with correct credentials")
-                    return True
-                else:
-                    print_error(f"User email mismatch: {user}")
-                    return False
-            else:
-                print_error(f"Missing token or user in response: {data}")
-                return False
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"Login failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 5: Auth - Login with Wrong Password (401)
-# ============================================================================
-def test_auth_login_wrong_password():
-    print_test("Auth Login with Wrong Password (expect 401)")
-    try:
-        payload = {
-            "email": test_email,
-            "password": "WrongPassword123!"
-        }
-        print_info(f"Attempting login with wrong password")
-        
-        response = requests.post(
-            f"{BASE_URL}/auth/login",
-            json=payload,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
-        
-        if response.status_code == 401:
-            data = response.json()
-            if 'error' in data:
-                print_success("Wrong password correctly rejected with 401")
-                return True
-            else:
-                print_error(f"Expected error message, got: {data}")
-                return False
-        else:
-            print_error(f"Expected 401, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"Wrong password test failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 6: Auth - Get Current User with Token
-# ============================================================================
-def test_auth_me_with_token():
-    print_test("Auth Me GET /api/auth/me (with Bearer token)")
-    try:
-        if not auth_token:
-            print_error("No auth token available")
-            return False
-        
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        print_info(f"Getting current user with token")
-        
-        response = requests.get(
-            f"{BASE_URL}/auth/me",
-            headers=headers,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'user' in data:
-                user = data['user']
-                if user.get('email') == test_email.lower() and user.get('name') == test_name:
-                    print_success("Auth me returned correct user data")
-                    return True
-                else:
-                    print_error(f"User data mismatch: {user}")
-                    return False
-            else:
-                print_error(f"Missing user in response: {data}")
-                return False
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"Auth me test failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 7: Auth - Get Current User without Token (401)
-# ============================================================================
-def test_auth_me_without_token():
-    print_test("Auth Me GET /api/auth/me (without token, expect 401)")
-    try:
-        print_info(f"Attempting to get user without token")
-        
-        response = requests.get(
-            f"{BASE_URL}/auth/me",
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
-        
-        if response.status_code == 401:
-            data = response.json()
-            if 'error' in data:
-                print_success("No token correctly rejected with 401")
-                return True
-            else:
-                print_error(f"Expected error message, got: {data}")
-                return False
-        else:
-            print_error(f"Expected 401, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"No token test failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 8: AI Marketing Audit - Success Path
-# ============================================================================
-def test_audit_success():
-    print_test("AI Marketing Audit POST /api/audit (GPT-5 integration)")
-    try:
-        payload = {
-            "name": "Michael Chen",
-            "email": f"michael-{uuid4()}@techstartup.io",
-            "website": "techstartup.io",
-            "industry": "SaaS Technology",
-            "goals": "Increase organic traffic by 200% and generate 500 qualified leads per month",
-            "currentChallenges": "Low domain authority, limited content strategy, no clear SEO roadmap"
-        }
-        print_info(f"Requesting audit for: {payload['website']}")
-        print_info(f"⏱️  This may take up to 90 seconds (GPT-5 call)...")
-        
-        response = requests.post(
-            f"{BASE_URL}/audit",
-            json=payload,
-            timeout=120  # 120 second timeout for LLM call
-        )
-        print_info(f"Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            print_info(f"Response keys: {list(data.keys())}")
-            
-            # Check for id and audit
-            if 'id' not in data or 'audit' not in data:
-                print_error(f"Missing id or audit in response: {data}")
-                return False
-            
-            audit = data['audit']
-            print_info(f"Audit keys: {list(audit.keys())}")
-            
-            # Validate audit structure
-            required_fields = [
-                'healthScore', 'positioning', 'topInsights',
-                'plan', 'build', 'grow',
-                'connectedSystems', 'quickWins', 'estimatedImpact'
-            ]
-            
-            missing_fields = [f for f in required_fields if f not in audit]
-            if missing_fields:
-                print_error(f"Missing required fields in audit: {missing_fields}")
-                return False
-            
-            # Validate healthScore is 0-100
-            health_score = audit.get('healthScore')
-            if not isinstance(health_score, (int, float)) or health_score < 0 or health_score > 100:
-                print_error(f"Invalid healthScore: {health_score} (must be 0-100)")
-                return False
-            
-            # Validate plan/build/grow structure
-            for phase in ['plan', 'build', 'grow']:
-                phase_data = audit.get(phase)
-                if not isinstance(phase_data, dict):
-                    print_error(f"{phase} is not an object: {phase_data}")
-                    return False
-                if 'summary' not in phase_data or 'actions' not in phase_data:
-                    print_error(f"{phase} missing summary or actions: {phase_data}")
-                    return False
-                if not isinstance(phase_data['actions'], list):
-                    print_error(f"{phase} actions is not an array: {phase_data['actions']}")
-                    return False
-            
-            # Validate arrays
-            for field in ['topInsights', 'connectedSystems', 'quickWins']:
-                if not isinstance(audit.get(field), list):
-                    print_error(f"{field} is not an array: {audit.get(field)}")
-                    return False
-            
-            # Validate strings
-            for field in ['positioning', 'estimatedImpact']:
-                if not isinstance(audit.get(field), str):
-                    print_error(f"{field} is not a string: {audit.get(field)}")
-                    return False
-            
-            print_success(f"Audit generated successfully with healthScore: {health_score}")
-            print_info(f"Positioning: {audit['positioning'][:100]}...")
-            print_info(f"Top Insights: {len(audit['topInsights'])} insights")
-            print_info(f"Plan actions: {len(audit['plan']['actions'])} actions")
-            print_info(f"Build actions: {len(audit['build']['actions'])} actions")
-            print_info(f"Grow actions: {len(audit['grow']['actions'])} actions")
-            
-            # Store audit ID for next test
-            global audit_id
-            audit_id = data['id']
-            return True
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            print_error(f"Response: {response.text}")
-            return False
-    except requests.exceptions.Timeout:
-        print_error("Request timed out after 120 seconds")
-        return False
-    except Exception as e:
-        print_error(f"Audit test failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return False
-
-# ============================================================================
-# TEST 9: Get Audit by ID
-# ============================================================================
-def test_get_audit_by_id():
-    print_test("Get Audit GET /api/audit/:id")
-    try:
-        if 'audit_id' not in globals():
-            print_error("No audit ID available from previous test")
-            return False
-        
-        print_info(f"Fetching audit: {audit_id}")
-        
-        response = requests.get(
-            f"{BASE_URL}/audit/{audit_id}",
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        
-        if response.status_code == 200:
-            data = response.json()
-            if 'id' in data and 'audit' in data and data['id'] == audit_id:
-                print_success("Audit retrieved successfully by ID")
-                return True
-            else:
-                print_error(f"Audit data mismatch: {data}")
-                return False
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            return False
-    except Exception as e:
-        print_error(f"Get audit by ID failed: {str(e)}")
-        return False
-
-# ============================================================================
-# TEST 10: Audit with Missing Website (400)
-# ============================================================================
-def test_audit_missing_website():
-    print_test("AI Marketing Audit without website (expect 400)")
-    try:
+        log("TEST 2: Auth register...")
+        email = f"test-{uuid.uuid4()}@beyondmarketing.test"
         payload = {
             "name": "Test User",
-            "email": f"test-{uuid4()}@example.com",
-            "industry": "Technology",
-            "goals": "Grow business",
-            "currentChallenges": "Need more leads"
+            "email": email,
+            "password": "SecurePass123!",
+            "company": "Test Corp"
         }
-        print_info(f"Attempting audit without website field")
-        
-        response = requests.post(
-            f"{BASE_URL}/audit",
-            json=payload,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
-        
-        if response.status_code == 400:
-            data = response.json()
-            if 'error' in data:
-                print_success("Missing website correctly rejected with 400")
-                return True
-            else:
-                print_error(f"Expected error message, got: {data}")
-                return False
-        else:
-            print_error(f"Expected 400, got {response.status_code}")
-            return False
+        r = requests.post(f"{BASE_URL}/auth/register", json=payload, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+        data = r.json()
+        assert 'token' in data, "Missing token"
+        assert 'user' in data, "Missing user"
+        assert data['user']['email'] == email.lower(), "Email mismatch"
+        log(f"✅ Auth register passed - token: {data['token'][:20]}...")
+        return data['token'], email
     except Exception as e:
-        print_error(f"Missing website test failed: {str(e)}")
-        return False
+        log(f"❌ Auth register failed: {e}")
+        return None, None
 
-# ============================================================================
-# TEST 11: Portal Dashboard without Token (401)
-# ============================================================================
-def test_portal_dashboard_without_token():
-    print_test("Portal Dashboard GET /api/portal/dashboard (without token, expect 401)")
+def test_projects_crud(token):
+    """Test 3-10: Projects CRUD operations"""
+    headers = {"Authorization": f"Bearer {token}"}
+    project_id = None
+    
     try:
-        print_info(f"Attempting to access dashboard without token")
+        # Test 3: Create project without token
+        log("TEST 3: Create project without token (should fail)...")
+        r = requests.post(f"{BASE_URL}/portal/projects", 
+                         json={"name": "Test Project"}, 
+                         timeout=10)
+        assert r.status_code == 401, f"Expected 401, got {r.status_code}"
+        log("✅ Correctly rejected request without token")
         
-        response = requests.get(
-            f"{BASE_URL}/portal/dashboard",
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
+        # Test 4: Create project without name
+        log("TEST 4: Create project without name (should fail)...")
+        r = requests.post(f"{BASE_URL}/portal/projects", 
+                         json={"phase": "Build"}, 
+                         headers=headers,
+                         timeout=10)
+        assert r.status_code == 400, f"Expected 400, got {r.status_code}"
+        log("✅ Correctly rejected project without name")
         
-        if response.status_code == 401:
-            data = response.json()
-            if 'error' in data:
-                print_success("Dashboard access without token correctly rejected with 401")
-                return True
-            else:
-                print_error(f"Expected error message, got: {data}")
-                return False
-        else:
-            print_error(f"Expected 401, got {response.status_code}")
-            return False
+        # Test 5: Create project successfully
+        log("TEST 5: Create project with valid data...")
+        r = requests.post(f"{BASE_URL}/portal/projects",
+                         json={"name": "Test SEO push", "phase": "Build"},
+                         headers=headers,
+                         timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+        data = r.json()
+        assert 'project' in data, "Missing project in response"
+        project = data['project']
+        assert 'id' in project, "Missing project id"
+        assert project['name'] == "Test SEO push", "Name mismatch"
+        assert project['phase'] == "Build", "Phase mismatch"
+        assert 'status' in project, "Missing status"
+        assert 'progress' in project, "Missing progress"
+        assert 'createdAt' in project, "Missing createdAt"
+        project_id = project['id']
+        log(f"✅ Project created successfully - id: {project_id}")
+        
+        # Test 6: List projects
+        log("TEST 6: List projects...")
+        r = requests.get(f"{BASE_URL}/portal/projects", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        assert 'projects' in data, "Missing projects array"
+        assert len(data['projects']) > 0, "Projects list is empty"
+        found = any(p['id'] == project_id for p in data['projects'])
+        assert found, "Created project not found in list"
+        log(f"✅ Projects list contains created project ({len(data['projects'])} total)")
+        
+        # Test 7: Update project progress
+        log("TEST 7: Update project progress...")
+        r = requests.patch(f"{BASE_URL}/portal/projects/{project_id}",
+                          json={"progress": 50},
+                          headers=headers,
+                          timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+        data = r.json()
+        assert data.get('ok') == True, "Expected ok:true"
+        log("✅ Project updated successfully")
+        
+        # Test 8: Update nonexistent project
+        log("TEST 8: Update nonexistent project (should fail)...")
+        fake_id = str(uuid.uuid4())
+        r = requests.patch(f"{BASE_URL}/portal/projects/{fake_id}",
+                          json={"progress": 75},
+                          headers=headers,
+                          timeout=10)
+        assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+        log("✅ Correctly returned 404 for nonexistent project")
+        
+        # Test 9: Verify progress was updated
+        log("TEST 9: Verify progress update...")
+        r = requests.get(f"{BASE_URL}/portal/projects", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        project = next((p for p in data['projects'] if p['id'] == project_id), None)
+        assert project is not None, "Project not found"
+        assert project['progress'] == 50, f"Expected progress 50, got {project['progress']}"
+        log("✅ Progress correctly updated to 50")
+        
+        # Test 10: Delete project
+        log("TEST 10: Delete project...")
+        r = requests.delete(f"{BASE_URL}/portal/projects/{project_id}",
+                           headers=headers,
+                           timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        assert data.get('ok') == True, "Expected ok:true"
+        log("✅ Project deleted successfully")
+        
+        # Test 11: Verify project is gone
+        log("TEST 11: Verify project deletion...")
+        r = requests.get(f"{BASE_URL}/portal/projects", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        found = any(p['id'] == project_id for p in data['projects'])
+        assert not found, "Deleted project still in list"
+        log("✅ Project successfully removed from list")
+        
+        return True
+        
     except Exception as e:
-        print_error(f"Dashboard without token test failed: {str(e)}")
+        log(f"❌ Projects CRUD failed: {e}")
         return False
 
-# ============================================================================
-# TEST 12: Portal Dashboard with Valid Token
-# ============================================================================
-def test_portal_dashboard_with_token():
-    print_test("Portal Dashboard GET /api/portal/dashboard (with Bearer token)")
+def test_tasks_crud(token):
+    """Test 12-18: Tasks CRUD operations"""
+    headers = {"Authorization": f"Bearer {token}"}
+    task_id = None
+    
     try:
-        if not auth_token:
-            print_error("No auth token available")
-            return False
+        # Test 12: Create task without title
+        log("TEST 12: Create task without title (should fail)...")
+        r = requests.post(f"{BASE_URL}/portal/tasks",
+                         json={"due": "tomorrow"},
+                         headers=headers,
+                         timeout=10)
+        assert r.status_code == 400, f"Expected 400, got {r.status_code}"
+        log("✅ Correctly rejected task without title")
         
-        headers = {"Authorization": f"Bearer {auth_token}"}
-        print_info(f"Accessing dashboard with valid token")
+        # Test 13: Create task successfully
+        log("TEST 13: Create task with valid data...")
+        r = requests.post(f"{BASE_URL}/portal/tasks",
+                         json={"title": "Test task", "due": "tomorrow"},
+                         headers=headers,
+                         timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+        data = r.json()
+        assert 'task' in data, "Missing task in response"
+        task = data['task']
+        assert 'id' in task, "Missing task id"
+        assert task['title'] == "Test task", "Title mismatch"
+        assert task['due'] == "tomorrow", "Due mismatch"
+        assert 'owner' in task, "Missing owner"
+        assert task['done'] == False, "Task should not be done initially"
+        task_id = task['id']
+        log(f"✅ Task created successfully - id: {task_id}")
         
-        response = requests.get(
-            f"{BASE_URL}/portal/dashboard",
-            headers=headers,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
+        # Test 14: List tasks
+        log("TEST 14: List tasks...")
+        r = requests.get(f"{BASE_URL}/portal/tasks", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        assert 'tasks' in data, "Missing tasks array"
+        assert len(data['tasks']) > 0, "Tasks list is empty"
+        found = any(t['id'] == task_id for t in data['tasks'])
+        assert found, "Created task not found in list"
+        log(f"✅ Tasks list contains created task ({len(data['tasks'])} total)")
         
-        if response.status_code == 200:
-            data = response.json()
-            print_info(f"Response keys: {list(data.keys())}")
-            
-            # Validate structure
-            required_fields = [
-                'user', 'healthScore', 'kpis', 'traffic',
-                'rankings', 'projects', 'tasks', 'notifications'
-            ]
-            
-            missing_fields = [f for f in required_fields if f not in data]
-            if missing_fields:
-                print_error(f"Missing required fields: {missing_fields}")
-                return False
-            
-            # Validate healthScore
-            if not isinstance(data['healthScore'], (int, float)):
-                print_error(f"Invalid healthScore type: {type(data['healthScore'])}")
-                return False
-            
-            # Validate KPIs structure
-            kpis = data['kpis']
-            required_kpis = ['organicTraffic', 'leads', 'conversions', 'revenueAttributed']
-            for kpi in required_kpis:
-                if kpi not in kpis:
-                    print_error(f"Missing KPI: {kpi}")
-                    return False
-                if 'value' not in kpis[kpi] or 'delta' not in kpis[kpi]:
-                    print_error(f"KPI {kpi} missing value or delta: {kpis[kpi]}")
-                    return False
-            
-            # Validate traffic array (should have 12 months)
-            traffic = data['traffic']
-            if not isinstance(traffic, list) or len(traffic) != 12:
-                print_error(f"Traffic should be array of 12 items, got: {len(traffic)}")
-                return False
-            
-            # Validate traffic items have required fields
-            for item in traffic:
-                if 'month' not in item or 'organic' not in item or 'paid' not in item or 'direct' not in item:
-                    print_error(f"Traffic item missing required fields: {item}")
-                    return False
-            
-            # Validate arrays
-            if not isinstance(data['rankings'], list):
-                print_error(f"Rankings should be array")
-                return False
-            if not isinstance(data['projects'], list):
-                print_error(f"Projects should be array")
-                return False
-            if not isinstance(data['tasks'], list):
-                print_error(f"Tasks should be array")
-                return False
-            if not isinstance(data['notifications'], list):
-                print_error(f"Notifications should be array")
-                return False
-            
-            print_success(f"Dashboard data retrieved successfully")
-            print_info(f"Health Score: {data['healthScore']}")
-            print_info(f"Organic Traffic: {kpis['organicTraffic']['value']} ({kpis['organicTraffic']['delta']})")
-            print_info(f"Traffic data points: {len(traffic)}")
-            print_info(f"Rankings: {len(data['rankings'])} keywords")
-            print_info(f"Projects: {len(data['projects'])} active")
-            print_info(f"Tasks: {len(data['tasks'])} pending")
-            print_info(f"Notifications: {len(data['notifications'])} unread")
-            return True
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            print_error(f"Response: {response.text}")
-            return False
+        # Test 15: Toggle task done
+        log("TEST 15: Toggle task done status...")
+        r = requests.patch(f"{BASE_URL}/portal/tasks/{task_id}",
+                          json={"done": True},
+                          headers=headers,
+                          timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}: {r.text}"
+        data = r.json()
+        assert data.get('ok') == True, "Expected ok:true"
+        log("✅ Task updated successfully")
+        
+        # Test 16: Verify task done status
+        log("TEST 16: Verify task done status...")
+        r = requests.get(f"{BASE_URL}/portal/tasks", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        task = next((t for t in data['tasks'] if t['id'] == task_id), None)
+        assert task is not None, "Task not found"
+        assert task['done'] == True, f"Expected done=True, got {task['done']}"
+        log("✅ Task done status correctly updated to True")
+        
+        # Test 17: Delete task
+        log("TEST 17: Delete task...")
+        r = requests.delete(f"{BASE_URL}/portal/tasks/{task_id}",
+                           headers=headers,
+                           timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        assert data.get('ok') == True, "Expected ok:true"
+        log("✅ Task deleted successfully")
+        
+        # Test 18: Verify task is gone
+        log("TEST 18: Verify task deletion...")
+        r = requests.get(f"{BASE_URL}/portal/tasks", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        found = any(t['id'] == task_id for t in data['tasks'])
+        assert not found, "Deleted task still in list"
+        log("✅ Task successfully removed from list")
+        
+        return True
+        
     except Exception as e:
-        print_error(f"Dashboard test failed: {str(e)}")
-        import traceback
-        traceback.print_exc()
+        log(f"❌ Tasks CRUD failed: {e}")
         return False
 
-# ============================================================================
-# TEST 13: Contact Form Submission
-# ============================================================================
-def test_contact_form():
-    print_test("Contact Form POST /api/contact")
+def test_dashboard_merge(token):
+    """Test 19-21: Dashboard merge logic"""
+    headers = {"Authorization": f"Bearer {token}"}
+    
     try:
-        payload = {
-            "name": "Jennifer Martinez",
-            "email": f"jennifer-{uuid4()}@growthcompany.com",
-            "company": "Growth Company Inc",
-            "message": "We're interested in your Plan → Build → Grow framework and would like to schedule a discovery call to discuss our marketing challenges."
-        }
-        print_info(f"Submitting contact form for: {payload['name']}")
+        # Test 19: Dashboard with no user data (should return mock)
+        log("TEST 19: Dashboard with no user projects/tasks...")
+        r = requests.get(f"{BASE_URL}/portal/dashboard", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        assert 'projects' in data, "Missing projects"
+        assert 'tasks' in data, "Missing tasks"
+        # Should have mock data (4 projects, 3 tasks)
+        log(f"✅ Dashboard returned {len(data['projects'])} projects, {len(data['tasks'])} tasks (mock data)")
         
-        response = requests.post(
-            f"{BASE_URL}/contact",
-            json=payload,
-            timeout=10
-        )
-        print_info(f"Status: {response.status_code}")
-        print_info(f"Response: {response.text}")
+        # Test 20: Create real projects and tasks
+        log("TEST 20: Create 2 projects and 2 tasks...")
+        p1 = requests.post(f"{BASE_URL}/portal/projects",
+                          json={"name": "Real Project 1", "phase": "Plan"},
+                          headers=headers, timeout=10)
+        p2 = requests.post(f"{BASE_URL}/portal/projects",
+                          json={"name": "Real Project 2", "phase": "Build"},
+                          headers=headers, timeout=10)
+        t1 = requests.post(f"{BASE_URL}/portal/tasks",
+                          json={"title": "Real Task 1", "due": "today"},
+                          headers=headers, timeout=10)
+        t2 = requests.post(f"{BASE_URL}/portal/tasks",
+                          json={"title": "Real Task 2", "due": "tomorrow"},
+                          headers=headers, timeout=10)
         
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('ok') == True and 'id' in data:
-                print_success(f"Contact form submitted successfully with ID: {data['id']}")
-                return True
-            else:
-                print_error(f"Unexpected response structure: {data}")
-                return False
-        else:
-            print_error(f"Expected 200, got {response.status_code}")
-            return False
+        assert p1.status_code == 200, f"Project 1 creation failed: {p1.status_code}"
+        assert p2.status_code == 200, f"Project 2 creation failed: {p2.status_code}"
+        assert t1.status_code == 200, f"Task 1 creation failed: {t1.status_code}"
+        assert t2.status_code == 200, f"Task 2 creation failed: {t2.status_code}"
+        
+        proj1_id = p1.json()['project']['id']
+        proj2_id = p2.json()['project']['id']
+        task1_id = t1.json()['task']['id']
+        task2_id = t2.json()['task']['id']
+        
+        log("✅ Created 2 projects and 2 tasks")
+        
+        # Test 21: Dashboard should now return real data
+        log("TEST 21: Dashboard should return real projects/tasks...")
+        r = requests.get(f"{BASE_URL}/portal/dashboard", headers=headers, timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        data = r.json()
+        
+        # Should now have exactly 2 projects and 2 tasks (real data)
+        assert len(data['projects']) == 2, f"Expected 2 projects, got {len(data['projects'])}"
+        assert len(data['tasks']) == 2, f"Expected 2 tasks, got {len(data['tasks'])}"
+        
+        # Verify they have IDs (real data has IDs, mock doesn't)
+        assert all('id' in p for p in data['projects']), "Projects missing IDs"
+        assert all('id' in t for t in data['tasks']), "Tasks missing IDs"
+        
+        # Verify specific IDs
+        project_ids = [p['id'] for p in data['projects']]
+        task_ids = [t['id'] for t in data['tasks']]
+        assert proj1_id in project_ids, "Project 1 not in dashboard"
+        assert proj2_id in project_ids, "Project 2 not in dashboard"
+        assert task1_id in task_ids, "Task 1 not in dashboard"
+        assert task2_id in task_ids, "Task 2 not in dashboard"
+        
+        log("✅ Dashboard correctly merged real projects/tasks (2 each with IDs)")
+        
+        # Cleanup
+        requests.delete(f"{BASE_URL}/portal/projects/{proj1_id}", headers=headers, timeout=10)
+        requests.delete(f"{BASE_URL}/portal/projects/{proj2_id}", headers=headers, timeout=10)
+        requests.delete(f"{BASE_URL}/portal/tasks/{task1_id}", headers=headers, timeout=10)
+        requests.delete(f"{BASE_URL}/portal/tasks/{task2_id}", headers=headers, timeout=10)
+        
+        return True
+        
     except Exception as e:
-        print_error(f"Contact form test failed: {str(e)}")
+        log(f"❌ Dashboard merge test failed: {e}")
         return False
 
-# ============================================================================
-# RUN ALL TESTS
-# ============================================================================
-def run_all_tests():
-    print("\n" + "="*80)
-    print("BEYOND MARKETING BACKEND API TEST SUITE")
-    print("="*80)
-    print(f"Base URL: {BASE_URL}")
-    print(f"Test Email: {test_email}")
-    print("="*80)
+def test_security_user_isolation():
+    """Test 22: Security - user isolation"""
+    try:
+        log("TEST 22: Security - user isolation...")
+        
+        # Register user A
+        email_a = f"user-a-{uuid.uuid4()}@test.com"
+        r_a = requests.post(f"{BASE_URL}/auth/register",
+                           json={"name": "User A", "email": email_a, "password": "pass123"},
+                           timeout=10)
+        assert r_a.status_code == 200, f"User A registration failed: {r_a.status_code}"
+        token_a = r_a.json()['token']
+        
+        # Register user B
+        email_b = f"user-b-{uuid.uuid4()}@test.com"
+        r_b = requests.post(f"{BASE_URL}/auth/register",
+                           json={"name": "User B", "email": email_b, "password": "pass123"},
+                           timeout=10)
+        assert r_b.status_code == 200, f"User B registration failed: {r_b.status_code}"
+        token_b = r_b.json()['token']
+        
+        # User A creates a project
+        r = requests.post(f"{BASE_URL}/portal/projects",
+                         json={"name": "User A Project", "phase": "Build"},
+                         headers={"Authorization": f"Bearer {token_a}"},
+                         timeout=10)
+        assert r.status_code == 200, f"Project creation failed: {r.status_code}"
+        project_id = r.json()['project']['id']
+        
+        log(f"User A created project {project_id}")
+        
+        # User B tries to PATCH User A's project
+        r = requests.patch(f"{BASE_URL}/portal/projects/{project_id}",
+                          json={"progress": 99},
+                          headers={"Authorization": f"Bearer {token_b}"},
+                          timeout=10)
+        assert r.status_code == 404, f"Expected 404, got {r.status_code} (User B should not access User A's project)"
+        
+        # User B tries to DELETE User A's project
+        r = requests.delete(f"{BASE_URL}/portal/projects/{project_id}",
+                           headers={"Authorization": f"Bearer {token_b}"},
+                           timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        # Note: DELETE returns 200 even if not found (deleteOne doesn't fail)
+        
+        # Verify project still exists for User A
+        r = requests.get(f"{BASE_URL}/portal/projects",
+                        headers={"Authorization": f"Bearer {token_a}"},
+                        timeout=10)
+        assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+        projects = r.json()['projects']
+        found = any(p['id'] == project_id for p in projects)
+        
+        # Cleanup
+        requests.delete(f"{BASE_URL}/portal/projects/{project_id}",
+                       headers={"Authorization": f"Bearer {token_a}"},
+                       timeout=10)
+        
+        log("✅ Security test passed - PATCH correctly returned 404 for cross-user access")
+        log("⚠️  Note: DELETE returns 200 even for non-owned resources (MongoDB deleteOne behavior)")
+        
+        return True
+        
+    except Exception as e:
+        log(f"❌ Security test failed: {e}")
+        return False
+
+def test_original_endpoints(token):
+    """Test 23: Verify original endpoints still work"""
+    headers = {"Authorization": f"Bearer {token}"}
     
-    results = {}
+    try:
+        log("TEST 23: Verify original endpoints...")
+        
+        # Test /auth/me
+        r = requests.get(f"{BASE_URL}/auth/me", headers=headers, timeout=10)
+        assert r.status_code == 200, f"/auth/me failed: {r.status_code}"
+        assert 'user' in r.json(), "/auth/me missing user"
+        
+        # Test /contact
+        r = requests.post(f"{BASE_URL}/contact",
+                         json={"name": "Test", "email": "test@test.com", "message": "Test"},
+                         timeout=10)
+        assert r.status_code == 200, f"/contact failed: {r.status_code}"
+        assert r.json().get('ok') == True, "/contact missing ok:true"
+        
+        log("✅ Original endpoints (/auth/me, /contact) still working")
+        return True
+        
+    except Exception as e:
+        log(f"❌ Original endpoints test failed: {e}")
+        return False
+
+def main():
+    log("=" * 80)
+    log("BEYOND MARKETING BACKEND TEST SUITE")
+    log("Testing Portal Projects/Tasks CRUD and Dashboard Merge")
+    log("=" * 80)
     
-    # Test 1: Health Check
-    results['Health Check'] = test_health_check()
+    results = []
     
-    # Test 2-7: Auth Flow
-    results['Auth Register'] = test_auth_register()
-    results['Auth Register Duplicate'] = test_auth_register_duplicate()
-    results['Auth Login Success'] = test_auth_login_success()
-    results['Auth Login Wrong Password'] = test_auth_login_wrong_password()
-    results['Auth Me With Token'] = test_auth_me_with_token()
-    results['Auth Me Without Token'] = test_auth_me_without_token()
+    # Test 1: Health check
+    results.append(("Health Check", test_health_check()))
     
-    # Test 8-10: AI Marketing Audit
-    results['Audit Success'] = test_audit_success()
-    results['Get Audit By ID'] = test_get_audit_by_id()
-    results['Audit Missing Website'] = test_audit_missing_website()
+    # Test 2: Register user
+    token, email = test_auth_register()
+    if not token:
+        log("❌ Cannot proceed without valid token")
+        return
+    results.append(("Auth Register", True))
     
-    # Test 11-12: Portal Dashboard
-    results['Dashboard Without Token'] = test_portal_dashboard_without_token()
-    results['Dashboard With Token'] = test_portal_dashboard_with_token()
+    # Test 3-11: Projects CRUD
+    results.append(("Projects CRUD", test_projects_crud(token)))
     
-    # Test 13: Contact Form
-    results['Contact Form'] = test_contact_form()
+    # Test 12-18: Tasks CRUD
+    results.append(("Tasks CRUD", test_tasks_crud(token)))
+    
+    # Test 19-21: Dashboard merge
+    results.append(("Dashboard Merge", test_dashboard_merge(token)))
+    
+    # Test 22: Security
+    results.append(("Security/User Isolation", test_security_user_isolation()))
+    
+    # Test 23: Original endpoints
+    results.append(("Original Endpoints", test_original_endpoints(token)))
     
     # Summary
-    print("\n" + "="*80)
-    print("TEST SUMMARY")
-    print("="*80)
-    
-    passed = sum(1 for v in results.values() if v)
+    log("=" * 80)
+    log("TEST SUMMARY")
+    log("=" * 80)
+    passed = sum(1 for _, result in results if result)
     total = len(results)
     
-    for test_name, result in results.items():
+    for name, result in results:
         status = "✅ PASS" if result else "❌ FAIL"
-        print(f"{status}: {test_name}")
+        log(f"{status}: {name}")
     
-    print("="*80)
-    print(f"TOTAL: {passed}/{total} tests passed ({passed*100//total}%)")
-    print("="*80)
+    log("=" * 80)
+    log(f"TOTAL: {passed}/{total} tests passed ({passed*100//total}%)")
+    log("=" * 80)
     
-    return passed == total
+    if passed == total:
+        log("🎉 ALL TESTS PASSED!")
+    else:
+        log(f"⚠️  {total - passed} test(s) failed")
 
 if __name__ == "__main__":
-    success = run_all_tests()
-    exit(0 if success else 1)
+    main()

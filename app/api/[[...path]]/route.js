@@ -196,6 +196,9 @@ Produce the audit JSON now.`
       const db = await getDb()
       const user = await db.collection('users').findOne({ id: decoded.id })
 
+      const realProjects = await db.collection('projects').find({ userId: decoded.id }).sort({ createdAt: -1 }).toArray()
+      const realTasks = await db.collection('tasks').find({ userId: decoded.id }).sort({ createdAt: -1 }).toArray()
+
       const traffic = Array.from({ length: 12 }, (_, i) => ({
         month: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][i],
         organic: 800 + i * 180 + Math.round(Math.sin(i) * 120),
@@ -211,14 +214,14 @@ Produce the audit JSON now.`
         { keyword: 'business growth strategy', position: 6, change: +3 },
       ]
 
-      const projects = [
+      const projects = realProjects.length ? realProjects.map(p => ({ id: p.id, name: p.name, progress: p.progress, phase: p.phase, status: p.status })) : [
         { name: 'SEO & Local Authority', progress: 68, phase: 'Grow', status: 'On track' },
         { name: 'HubSpot CRM Setup', progress: 92, phase: 'Build', status: 'Wrapping up' },
         { name: 'Website Redesign', progress: 41, phase: 'Build', status: 'In progress' },
         { name: 'Q3 Marketing Plan', progress: 100, phase: 'Plan', status: 'Complete' },
       ]
 
-      const tasks = [
+      const tasks = realTasks.length ? realTasks.map(t => ({ id: t.id, title: t.title, due: t.due, owner: t.owner, done: !!t.done })) : [
         { title: 'Approve brand voice guide', due: '2 days', owner: 'Client' },
         { title: 'Provide Google Ads access', due: 'Today', owner: 'Client' },
         { title: 'Review Q3 content calendar', due: '5 days', owner: 'Client' },
@@ -245,6 +248,106 @@ Produce the audit JSON now.`
         tasks,
         notifications,
       })
+    }
+
+    // ===== Portal Projects CRUD =====
+    if (path === '/portal/projects' && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const db = await getDb()
+      const list = await db.collection('projects').find({ userId: decoded.id }).sort({ createdAt: -1 }).toArray()
+      return json({ projects: list.map(p => ({ id: p.id, name: p.name, phase: p.phase, status: p.status, progress: p.progress, createdAt: p.createdAt })) })
+    }
+
+    if (path === '/portal/projects' && method === 'POST') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const body = await request.json()
+      if (!body.name) return json({ error: 'Name required' }, 400)
+      const doc = {
+        id: uuidv4(),
+        userId: decoded.id,
+        name: body.name,
+        phase: body.phase || 'Plan',
+        status: body.status || 'In progress',
+        progress: typeof body.progress === 'number' ? body.progress : 0,
+        createdAt: new Date(),
+      }
+      const db = await getDb()
+      await db.collection('projects').insertOne(doc)
+      return json({ project: { id: doc.id, name: doc.name, phase: doc.phase, status: doc.status, progress: doc.progress, createdAt: doc.createdAt } })
+    }
+
+    if (path.startsWith('/portal/projects/') && method === 'PATCH') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const id = path.split('/')[3]
+      const body = await request.json()
+      const $set = {}
+      for (const k of ['name', 'phase', 'status', 'progress']) if (k in body) $set[k] = body[k]
+      const db = await getDb()
+      const r = await db.collection('projects').updateOne({ id, userId: decoded.id }, { $set })
+      if (!r.matchedCount) return json({ error: 'Not found' }, 404)
+      return json({ ok: true })
+    }
+
+    if (path.startsWith('/portal/projects/') && method === 'DELETE') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const id = path.split('/')[3]
+      const db = await getDb()
+      await db.collection('projects').deleteOne({ id, userId: decoded.id })
+      return json({ ok: true })
+    }
+
+    // ===== Portal Tasks CRUD =====
+    if (path === '/portal/tasks' && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const db = await getDb()
+      const list = await db.collection('tasks').find({ userId: decoded.id }).sort({ createdAt: -1 }).toArray()
+      return json({ tasks: list.map(t => ({ id: t.id, title: t.title, due: t.due, owner: t.owner, done: !!t.done, createdAt: t.createdAt })) })
+    }
+
+    if (path === '/portal/tasks' && method === 'POST') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const body = await request.json()
+      if (!body.title) return json({ error: 'Title required' }, 400)
+      const doc = {
+        id: uuidv4(),
+        userId: decoded.id,
+        title: body.title,
+        due: body.due || 'This week',
+        owner: body.owner || 'Client',
+        done: false,
+        createdAt: new Date(),
+      }
+      const db = await getDb()
+      await db.collection('tasks').insertOne(doc)
+      return json({ task: { id: doc.id, title: doc.title, due: doc.due, owner: doc.owner, done: false } })
+    }
+
+    if (path.startsWith('/portal/tasks/') && method === 'PATCH') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const id = path.split('/')[3]
+      const body = await request.json()
+      const $set = {}
+      for (const k of ['title', 'due', 'owner', 'done']) if (k in body) $set[k] = body[k]
+      const db = await getDb()
+      const r = await db.collection('tasks').updateOne({ id, userId: decoded.id }, { $set })
+      if (!r.matchedCount) return json({ error: 'Not found' }, 404)
+      return json({ ok: true })
+    }
+
+    if (path.startsWith('/portal/tasks/') && method === 'DELETE') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const id = path.split('/')[3]
+      const db = await getDb()
+      await db.collection('tasks').deleteOne({ id, userId: decoded.id })
+      return json({ ok: true })
     }
 
     return json({ error: 'Not found', path, method }, 404)

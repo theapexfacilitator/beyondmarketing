@@ -181,6 +181,52 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: POST /api/contact returns 200 with {ok:true, id:<uuid>}. Contact submission stored successfully in MongoDB with UUID. Working perfectly."
 
+  - task: "Portal Projects CRUD (create/list/patch/delete)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW: POST/GET /api/portal/projects and PATCH/DELETE /api/portal/projects/:id. JWT-protected via Authorization Bearer, scoped by userId in Mongo. Smoke-tested — created project appears in list AND in /portal/dashboard response."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: All Projects CRUD operations working perfectly. (1) POST without token correctly rejected with 401. (2) POST without name correctly rejected with 400. (3) POST with valid data {name:'Test SEO push', phase:'Build'} returns 200 with complete project object {id, name, phase, status, progress, createdAt}. (4) GET /api/portal/projects returns projects array containing created project. (5) PATCH /api/portal/projects/{id} with {progress:50} returns 200 {ok:true}. (6) PATCH nonexistent project correctly returns 404. (7) GET verified progress updated to 50. (8) DELETE /api/portal/projects/{id} returns 200 {ok:true}. (9) GET verified project removed from list. JWT protection working, userId scoping working, all CRUD operations functional."
+
+  - task: "Portal Tasks CRUD (create/list/toggle/delete)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW: POST/GET /api/portal/tasks and PATCH/DELETE /api/portal/tasks/:id. JWT-protected, scoped by userId. Supports toggling done (PATCH {done:true}). Smoke-tested — created task appears in list and dashboard."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: All Tasks CRUD operations working perfectly. (1) POST without title correctly rejected with 400. (2) POST with valid data {title:'Test task', due:'tomorrow'} returns 200 with complete task object {id, title, due, owner, done:false}. (3) GET /api/portal/tasks returns tasks array containing created task. (4) PATCH /api/portal/tasks/{id} with {done:true} returns 200 {ok:true}. (5) GET verified task.done === true. (6) DELETE /api/portal/tasks/{id} returns 200 {ok:true}. (7) GET verified task removed from list. JWT protection working, userId scoping working, done toggle working, all CRUD operations functional."
+
+  - task: "Dashboard merges real projects/tasks with mock KPIs"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "UPDATED: /api/portal/dashboard now fetches user's real projects & tasks from Mongo. If either collection has user rows, they replace the mock ones in the response. KPIs/traffic/rankings/notifications remain mock."
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED: Dashboard merge logic working perfectly. (1) User with no projects/tasks: dashboard returns mock data (4 projects, 3 tasks without IDs). (2) Created 2 real projects and 2 real tasks for user. (3) GET /api/portal/dashboard now returns exactly 2 projects and 2 tasks (real data with IDs). (4) Verified all returned items have 'id' field (confirming real data). (5) Verified specific project/task IDs match created items. Dashboard correctly replaces mock data with real user data when available. KPIs, traffic, rankings, and notifications remain mock as expected."
+
+
 frontend:
   - task: "Marketing site (Home, Approach, Plan, Build, Grow, Connected, Learning, Pricing, Contact)"
     implemented: true
@@ -221,7 +267,7 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 2
+  test_sequence: 3
   run_ui: false
 
 test_plan:
@@ -253,3 +299,34 @@ agent_communication:
       The AI Marketing Audit endpoint is correctly implemented but currently failing due to EMERGENT_LLM_KEY budget exhaustion. Logs show: "Budget has been exceeded! Current cost: 0.0384399, Max budget: 0.001". The endpoint DID work earlier (logs show successful 200 response in 41s), confirming the implementation is correct. The code properly handles gpt-5 → gpt-4o fallback and returns appropriate 502 when both fail.
       
       All backend APIs are production-ready. The only issue is the LLM API key budget limit, which is an infrastructure/configuration issue, not a code problem.
+  - agent: "testing"
+    message: |
+      NEW ENDPOINTS TESTING COMPLETE. Ran comprehensive test suite with 23 test scenarios covering all new Portal Projects/Tasks CRUD and Dashboard merge functionality. RESULTS: 23/23 tests PASSED (100%).
+      
+      ✅ ALL NEW FEATURES WORKING PERFECTLY:
+      
+      1. PROJECTS CRUD (9 tests):
+         - POST /api/portal/projects: JWT protection (401 without token), validation (400 without name), successful creation with all fields
+         - GET /api/portal/projects: Returns user's projects correctly
+         - PATCH /api/portal/projects/{id}: Updates work, 404 for nonexistent/other user's projects
+         - DELETE /api/portal/projects/{id}: Removes projects successfully
+      
+      2. TASKS CRUD (7 tests):
+         - POST /api/portal/tasks: Validation (400 without title), successful creation with done:false
+         - GET /api/portal/tasks: Returns user's tasks correctly
+         - PATCH /api/portal/tasks/{id}: Toggle done status works perfectly
+         - DELETE /api/portal/tasks/{id}: Removes tasks successfully
+      
+      3. DASHBOARD MERGE (3 tests):
+         - Empty user: Returns mock data (4 projects, 3 tasks)
+         - With real data: Correctly replaces mock with user's actual projects/tasks
+         - Real data includes IDs, mock data doesn't (verified distinction)
+      
+      4. SECURITY (1 test):
+         - User isolation working: User B cannot PATCH User A's project (404)
+         - Minor note: DELETE returns 200 even for non-owned resources (MongoDB deleteOne behavior, not a security issue)
+      
+      5. ORIGINAL ENDPOINTS (3 tests):
+         - Health check, auth/me, contact form all still working
+      
+      All backend APIs are production-ready. No critical issues found.

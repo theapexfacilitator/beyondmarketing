@@ -34,10 +34,13 @@ const GROWTH_IMG = 'https://images.unsplash.com/photo-1586448646505-e7bcafcd83a1
 const NAV = [
   { id: 'home', label: 'Home' },
   { id: 'approach', label: 'Our Approach' },
-  { id: 'plan', label: 'Plan' },
-  { id: 'build', label: 'Build' },
-  { id: 'grow', label: 'Grow' },
-  { id: 'connected', label: 'Connected Systems' },
+  { id: 'services', label: 'Services', dropdown: [
+    { id: 'services', label: 'All Services', desc: 'Overview of every capability', icon: 'Layers' },
+    { id: 'plan', label: 'Plan', desc: 'Strategy, audits, roadmaps', icon: 'Compass' },
+    { id: 'build', label: 'Build', desc: 'SEO, content, CRM, automation', icon: 'Hammer' },
+    { id: 'grow', label: 'Grow', desc: 'Reporting, insights, optimisation', icon: 'TrendingUp' },
+    { id: 'connected', label: 'Connected Business Systems', desc: 'Our differentiator', icon: 'Layers' },
+  ]},
   { id: 'learning', label: 'Learning Hub' },
   { id: 'pricing', label: 'Pricing' },
   { id: 'contact', label: 'Contact' },
@@ -72,12 +75,43 @@ function Logo({ onClick }) {
 
 function Nav({ go, route, user, onLogout }) {
   const [open, setOpen] = useState(false)
+  const [servicesOpen, setServicesOpen] = useState(false)
+  const iconMap = { Compass, Hammer, TrendingUp, Layers }
   return (
     <header className="sticky top-0 z-50 backdrop-blur-xl bg-background/70 border-b border-border/50">
       <div className="container mx-auto flex items-center justify-between h-16 px-4">
         <Logo onClick={() => go('home')} />
-        <nav className="hidden lg:flex items-center gap-1">
-          {NAV.map(n => (
+        <nav className="hidden lg:flex items-center gap-1 relative">
+          {NAV.map(n => n.dropdown ? (
+            <div key={n.id} className="relative" onMouseEnter={() => setServicesOpen(true)} onMouseLeave={() => setServicesOpen(false)}>
+              <button onClick={() => go(n.id)}
+                className={`px-3 py-1.5 rounded-md text-sm transition-colors flex items-center gap-1 ${['services','plan','build','grow','connected'].includes(route) ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground'}`}>
+                {n.label}
+                <svg className={`w-3 h-3 transition-transform ${servicesOpen ? 'rotate-180' : ''}`} viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              </button>
+              {servicesOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 pt-2 w-[520px]">
+                  <div className="rounded-2xl border border-border/60 bg-background/95 backdrop-blur-xl shadow-2xl shadow-blue-500/10 p-2 grid grid-cols-2 gap-1">
+                    {n.dropdown.map(d => {
+                      const Ic = iconMap[d.icon] || Layers
+                      return (
+                        <button key={d.id} onClick={() => { go(d.id); setServicesOpen(false) }}
+                          className="text-left p-3 rounded-xl hover:bg-secondary/70 transition-colors group flex gap-3">
+                          <div className="w-9 h-9 rounded-lg bg-blue-500/10 border border-blue-500/20 grid place-items-center flex-shrink-0 group-hover:bg-blue-500/20">
+                            <Ic className="w-4 h-4 text-blue-400" />
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">{d.label}</div>
+                            <div className="text-xs text-muted-foreground">{d.desc}</div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
             <button key={n.id} onClick={() => go(n.id)}
               className={`px-3 py-1.5 rounded-md text-sm transition-colors ${route === n.id ? 'text-foreground bg-secondary' : 'text-muted-foreground hover:text-foreground'}`}>
               {n.label}
@@ -106,7 +140,15 @@ function Nav({ go, route, user, onLogout }) {
       {open && (
         <div className="lg:hidden border-t border-border/50 bg-background/95">
           <div className="container mx-auto px-4 py-3 grid gap-1">
-            {NAV.map(n => (
+            {NAV.map(n => n.dropdown ? (
+              <div key={n.id}>
+                <div className="px-3 py-2 text-xs uppercase tracking-widest text-muted-foreground">{n.label}</div>
+                {n.dropdown.map(d => (
+                  <button key={d.id} onClick={() => { go(d.id); setOpen(false) }}
+                    className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-secondary">{d.label}</button>
+                ))}
+              </div>
+            ) : (
               <button key={n.id} onClick={() => { go(n.id); setOpen(false) }}
                 className="text-left px-3 py-2 rounded-md text-sm hover:bg-secondary">{n.label}</button>
             ))}
@@ -586,6 +628,64 @@ function FinalCTA({ go }) {
 }
 
 // ---------- Sub Pages ----------
+function ServicesOverview({ go }) {
+  const phases = [
+    { id: 'plan', icon: Compass, color: 'from-blue-500 to-cyan-400', title: 'Plan', tagline: 'Strategy, audits, roadmaps', bullets: ['Marketing Audit','Growth Strategy','Brand Positioning','KPI Planning','Quarterly Reviews'] },
+    { id: 'build', icon: Hammer, color: 'from-violet-500 to-fuchsia-400', title: 'Build', tagline: 'SEO, content, CRM, automation', bullets: ['Search Authority','Content & Campaigns','CRM & Automation','Websites & Landing Pages','Analytics Setup'] },
+    { id: 'grow', icon: TrendingUp, color: 'from-emerald-500 to-teal-400', title: 'Grow', tagline: 'Reporting, insights, optimisation', bullets: ['KPI Dashboards','SearchAtlas & GA4','AI Insights','Growth Recommendations','Attribution & CRO'] },
+    { id: 'connected', icon: Layers, color: 'from-amber-500 to-orange-400', title: 'Connected Business Systems', tagline: 'The core differentiator', bullets: ['Websites + Hosting + CRM','Marketing + Sales + Email','Automation + AI + Workflows','Analytics + Reporting','You own everything'] },
+  ]
+  return (
+    <div>
+      <PageHeader eyebrow="Services" title="One connected growth system." desc="Explore every capability of the Beyond Marketing Growth OS — organised around Plan, Build, Grow and Connected Business Systems." />
+      <section className="container mx-auto px-4 py-8 grid md:grid-cols-2 gap-5">
+        {phases.map(p => (
+          <Card key={p.id} className="relative overflow-hidden bg-secondary/30 border-border/60 hover:border-blue-500/40 transition-all hover:-translate-y-1 cursor-pointer" onClick={() => go(p.id)}>
+            <div className={`absolute -top-24 -right-24 w-64 h-64 rounded-full bg-gradient-to-br ${p.color} opacity-20 blur-3xl`} />
+            <CardHeader className="relative">
+              <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${p.color} grid place-items-center mb-3 shadow-lg`}>
+                <p.icon className="w-6 h-6 text-white" />
+              </div>
+              <CardTitle className="text-2xl">{p.title}</CardTitle>
+              <CardDescription>{p.tagline}</CardDescription>
+            </CardHeader>
+            <CardContent className="relative">
+              <ul className="space-y-2 text-sm">
+                {p.bullets.map(b => (
+                  <li key={b} className="flex items-center gap-2 text-muted-foreground">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" /> {b}
+                  </li>
+                ))}
+              </ul>
+              <Button variant="ghost" size="sm" className="mt-5 -ml-3">
+                Explore {p.title} <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+
+      <section className="container mx-auto px-4 py-16">
+        <div className="rounded-2xl border border-border/60 bg-secondary/30 p-8 md:p-12 grid md:grid-cols-2 gap-8 items-center">
+          <div>
+            <div className="text-sm text-blue-400 font-medium mb-2">Why it matters</div>
+            <h2 className="text-3xl font-semibold">Not another agency. A growth operating system.</h2>
+            <p className="mt-3 text-muted-foreground">Every service we deliver strengthens your connected ecosystem — so marketing, sales, technology and reporting all speak the same language.</p>
+            <div className="mt-6 flex flex-wrap gap-2">
+              {['Own your data','No lock-in','One source of truth','White-labelled reports','AI-augmented'].map(t => (
+                <span key={t} className="px-3 py-1.5 rounded-full text-xs border border-border/60 bg-background/60">{t}</span>
+              ))}
+            </div>
+          </div>
+          <img src={GROWTH_IMG} className="rounded-xl border border-border/60 w-full h-64 object-cover" alt="Growth" />
+        </div>
+      </section>
+
+      <FinalCTA go={go} />
+    </div>
+  )
+}
+
 function PageHeader({ eyebrow, title, desc }) {
   return (
     <section className="container mx-auto px-4 pt-20 pb-8 text-center">
@@ -866,16 +966,74 @@ function Auth({ mode, setUser, go }) {
 function Portal({ user, go }) {
   const [data, setData] = useState(null)
   const [tab, setTab] = useState('overview')
+  const [refresh, setRefresh] = useState(0)
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
+  const authHeaders = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+
   useEffect(() => {
     const load = async () => {
-      const token = localStorage.getItem('bm_token')
       if (!token) { go('login'); return }
       const r = await fetch('/api/portal/dashboard', { headers: { Authorization: `Bearer ${token}` } })
       if (r.ok) setData(await r.json())
       else go('login')
     }
     load()
-  }, [])
+  }, [refresh])
+
+  const [newProject, setNewProject] = useState({ name: '', phase: 'Plan' })
+  const [newTask, setNewTask] = useState({ title: '', due: 'This week' })
+  const [creating, setCreating] = useState(false)
+
+  const createProject = async (e) => {
+    e.preventDefault()
+    if (!newProject.name) return
+    setCreating(true)
+    try {
+      const r = await fetch('/api/portal/projects', { method: 'POST', headers: authHeaders, body: JSON.stringify(newProject) })
+      if (!r.ok) throw new Error()
+      setNewProject({ name: '', phase: 'Plan' })
+      toast.success('Project created')
+      setRefresh(x => x + 1)
+    } catch { toast.error('Failed to create project') } finally { setCreating(false) }
+  }
+
+  const createTask = async (e) => {
+    e.preventDefault()
+    if (!newTask.title) return
+    setCreating(true)
+    try {
+      const r = await fetch('/api/portal/tasks', { method: 'POST', headers: authHeaders, body: JSON.stringify(newTask) })
+      if (!r.ok) throw new Error()
+      setNewTask({ title: '', due: 'This week' })
+      toast.success('Task added')
+      setRefresh(x => x + 1)
+    } catch { toast.error('Failed to add task') } finally { setCreating(false) }
+  }
+
+  const toggleTask = async (t) => {
+    if (!t.id) { toast.info('Sign in to persist your tasks'); return }
+    await fetch(`/api/portal/tasks/${t.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ done: !t.done }) })
+    setRefresh(x => x + 1)
+  }
+
+  const deleteTask = async (t) => {
+    if (!t.id) return
+    await fetch(`/api/portal/tasks/${t.id}`, { method: 'DELETE', headers: authHeaders })
+    setRefresh(x => x + 1)
+  }
+
+  const deleteProject = async (p) => {
+    if (!p.id) return
+    await fetch(`/api/portal/projects/${p.id}`, { method: 'DELETE', headers: authHeaders })
+    setRefresh(x => x + 1)
+  }
+
+  const updateProjectProgress = async (p, progress) => {
+    if (!p.id) return
+    await fetch(`/api/portal/projects/${p.id}`, { method: 'PATCH', headers: authHeaders, body: JSON.stringify({ progress }) })
+    setRefresh(x => x + 1)
+  }
 
   if (!data) return <div className="container mx-auto px-4 py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
 
@@ -897,6 +1055,7 @@ function Portal({ user, go }) {
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="seo">SEO & Rankings</TabsTrigger>
           <TabsTrigger value="projects">Projects</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
 
@@ -949,11 +1108,22 @@ function Portal({ user, go }) {
 
           <div className="grid lg:grid-cols-2 gap-4">
             <Card className="bg-secondary/30 border-border/60">
-              <CardHeader><CardTitle>Tasks awaiting you</CardTitle></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0">
+                <div><CardTitle>Your tasks</CardTitle><CardDescription>{data.tasks.filter(t => !t.done).length} open</CardDescription></div>
+                <Button size="sm" variant="ghost" onClick={() => setTab('tasks')}>Manage <ArrowRight className="w-3.5 h-3.5 ml-1" /></Button>
+              </CardHeader>
               <CardContent className="space-y-2">
-                {data.tasks.map((t, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
-                    <div><div className="text-sm font-medium">{t.title}</div><div className="text-xs text-muted-foreground">Due {t.due}</div></div>
+                {data.tasks.slice(0, 4).map((t, i) => (
+                  <div key={t.id || i} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => toggleTask(t)} className={`w-5 h-5 rounded-md border-2 grid place-items-center transition ${t.done ? 'bg-emerald-500 border-emerald-500' : 'border-border/80 hover:border-blue-400'}`}>
+                        {t.done && <CheckCircle2 className="w-3 h-3 text-white" />}
+                      </button>
+                      <div>
+                        <div className={`text-sm font-medium ${t.done ? 'line-through text-muted-foreground' : ''}`}>{t.title}</div>
+                        <div className="text-xs text-muted-foreground">Due {t.due}</div>
+                      </div>
+                    </div>
                     <Badge variant="outline">{t.owner}</Badge>
                   </div>
                 ))}
@@ -996,20 +1166,89 @@ function Portal({ user, go }) {
         </TabsContent>
 
         <TabsContent value="projects" className="space-y-4">
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader><CardTitle>New project</CardTitle><CardDescription>Track any workstream inside your growth OS</CardDescription></CardHeader>
+            <CardContent>
+              <form onSubmit={createProject} className="flex flex-col sm:flex-row gap-2">
+                <Input placeholder="Project name (e.g. Local SEO push)" value={newProject.name} onChange={e => setNewProject({ ...newProject, name: e.target.value })} className="flex-1" />
+                <select value={newProject.phase} onChange={e => setNewProject({ ...newProject, phase: e.target.value })}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option>Plan</option><option>Build</option><option>Grow</option>
+                </select>
+                <Button disabled={creating} type="submit" className="bg-gradient-to-br from-blue-500 to-violet-500">Add project</Button>
+              </form>
+            </CardContent>
+          </Card>
+
           {data.projects.map((p, i) => (
-            <Card key={i} className="bg-secondary/30 border-border/60">
+            <Card key={p.id || i} className="bg-secondary/30 border-border/60">
               <CardContent className="p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <div className="text-sm font-semibold">{p.name}</div>
-                    <div className="text-xs text-muted-foreground">Phase: {p.phase} · {p.status}</div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-lg grid place-items-center ${p.phase === 'Plan' ? 'bg-blue-500/10 text-blue-400' : p.phase === 'Build' ? 'bg-violet-500/10 text-violet-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+                      {p.phase === 'Plan' ? <Compass className="w-4 h-4" /> : p.phase === 'Build' ? <Hammer className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold">{p.name}</div>
+                      <div className="text-xs text-muted-foreground">Phase: {p.phase} · {p.status}</div>
+                    </div>
                   </div>
-                  <div className="text-sm font-semibold">{p.progress}%</div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-sm font-semibold">{p.progress}%</div>
+                    {p.id && (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => updateProjectProgress(p, Math.min(100, (p.progress || 0) + 10))}>+10%</Button>
+                        <Button size="sm" variant="ghost" onClick={() => deleteProject(p)} className="text-rose-400 hover:text-rose-300">
+                          <X className="w-3.5 h-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <Progress value={p.progress} />
               </CardContent>
             </Card>
           ))}
+        </TabsContent>
+
+        <TabsContent value="tasks" className="space-y-4">
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader><CardTitle>Add a task</CardTitle></CardHeader>
+            <CardContent>
+              <form onSubmit={createTask} className="flex flex-col sm:flex-row gap-2">
+                <Input placeholder="What needs doing?" value={newTask.title} onChange={e => setNewTask({ ...newTask, title: e.target.value })} className="flex-1" />
+                <Input placeholder="Due" value={newTask.due} onChange={e => setNewTask({ ...newTask, due: e.target.value })} className="sm:w-40" />
+                <Button disabled={creating} type="submit" className="bg-gradient-to-br from-blue-500 to-violet-500">Add task</Button>
+              </form>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-secondary/30 border-border/60">
+            <CardContent className="p-4 space-y-2">
+              {data.tasks.length === 0 && <div className="text-sm text-muted-foreground p-4 text-center">No tasks yet — add your first above.</div>}
+              {data.tasks.map((t, i) => (
+                <div key={t.id || i} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => toggleTask(t)} className={`w-5 h-5 rounded-md border-2 grid place-items-center transition ${t.done ? 'bg-emerald-500 border-emerald-500' : 'border-border/80 hover:border-blue-400'}`}>
+                      {t.done && <CheckCircle2 className="w-3 h-3 text-white" />}
+                    </button>
+                    <div>
+                      <div className={`text-sm font-medium ${t.done ? 'line-through text-muted-foreground' : ''}`}>{t.title}</div>
+                      <div className="text-xs text-muted-foreground">Due {t.due}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{t.owner}</Badge>
+                    {t.id && (
+                      <Button size="sm" variant="ghost" onClick={() => deleteTask(t)} className="text-rose-400 hover:text-rose-300">
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="reports">
@@ -1050,6 +1289,7 @@ function App() {
   const view = (() => {
     switch (route) {
       case 'approach': return <Approach go={go} />
+      case 'services': return <ServicesOverview go={go} />
       case 'plan': return <PhasePage phase="plan" go={go} />
       case 'build': return <PhasePage phase="build" go={go} />
       case 'grow': return <PhasePage phase="grow" go={go} />
