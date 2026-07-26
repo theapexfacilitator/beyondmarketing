@@ -234,7 +234,7 @@ function Hero({ go }) {
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button size="lg" onClick={() => document.getElementById('audit-tool')?.scrollIntoView({ behavior: 'smooth' })}
               className="bg-gradient-to-br from-blue-500 to-violet-500 hover:opacity-90 shadow-lg shadow-blue-500/20">
-              Get your free AI Marketing Audit <Sparkles className="w-4 h-4 ml-2" />
+              Get your free Marketing Audit <Sparkles className="w-4 h-4 ml-2" />
             </Button>
             <Button size="lg" variant="outline" onClick={() => go('approach')}>See our approach <ArrowRight className="w-4 h-4 ml-2" /></Button>
           </div>
@@ -414,31 +414,18 @@ function ProcessSection() {
   )
 }
 
-// ---------- AI Marketing Audit Tool ----------
+// ---------- SearchAtlas Domain Analyzer (replaces AI audit) ----------
 function AuditCTA({ go }) {
-  const [form, setForm] = useState({ name: '', email: '', website: '', industry: '', goals: '', currentChallenges: '' })
-  const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
+  const [url, setUrl] = useState('')
 
-  const submit = async (e) => {
-    e.preventDefault()
-    if (!form.email || !form.website) { toast.error('Website and email are required'); return }
-    setLoading(true)
-    try {
-      const r = await fetch('/api/audit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      })
-      const data = await r.json()
-      if (!r.ok) throw new Error(data.error || 'Failed')
-      setResult(data.audit)
-      toast.success('Your audit is ready ✨')
-    } catch (err) {
-      toast.error(err.message || 'Something went wrong')
-    } finally {
-      setLoading(false)
-    }
+  const analyze = () => {
+    let clean = url.trim()
+    if (!clean) { toast.error('Enter a website URL'); return }
+    // Strip protocol and trailing slash so SearchAtlas gets a clean domain
+    clean = clean.replace(/^https?:\/\//i, '').replace(/\/+$/, '')
+    const target = `https://data.searchenginelabs.com/go/url/?domain_analyzer=${encodeURIComponent(clean)}&hostname=dashboard.searchatlas.com&userId=211706`
+    window.open(target, '_blank', 'noopener,noreferrer')
+    toast.success('Opening your free audit in a new tab…')
   }
 
   return (
@@ -446,52 +433,71 @@ function AuditCTA({ go }) {
       <div className="rounded-3xl border border-border/60 bg-gradient-to-br from-secondary/60 via-secondary/30 to-background p-8 md:p-14 relative overflow-hidden">
         <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full bg-blue-500/20 blur-3xl" />
         <div className="absolute -bottom-32 -left-32 w-96 h-96 rounded-full bg-violet-500/20 blur-3xl" />
-        <div className="relative grid lg:grid-cols-2 gap-10 items-start">
+        <div className="relative grid lg:grid-cols-2 gap-10 items-center">
           <div>
             <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-300 mb-4">
-              <Sparkles className="w-3 h-3 mr-1.5" /> Free AI Marketing Audit
+              <Sparkles className="w-3 h-3 mr-1.5" /> Free Marketing Audit
             </Badge>
-            <h2 className="text-4xl md:text-5xl font-semibold tracking-tight">Get a growth plan in 60 seconds.</h2>
-            <p className="mt-4 text-muted-foreground text-lg">Our AI strategist analyses your business and returns a Plan → Build → Grow audit with a health score, quick wins and connected systems roadmap.</p>
+            <h2 className="text-4xl md:text-5xl font-semibold tracking-tight">See exactly how your website is performing.</h2>
+            <p className="mt-4 text-muted-foreground text-lg">Run a full domain analysis powered by SearchAtlas — SEO score, keyword opportunities, backlinks, technical health and competitive positioning. Instant. Free. No sales call.</p>
             <ul className="mt-6 space-y-2 text-sm text-muted-foreground">
-              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Business Health Score (0-100)</li>
-              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Actionable roadmap per phase</li>
-              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Connected systems recommendations</li>
-              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Instant, no sales call required</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Full SEO score &amp; health check</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Keyword rankings &amp; opportunities</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Backlink profile &amp; authority</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Technical SEO issues</li>
+              <li className="flex gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-400" /> Competitor comparison</li>
             </ul>
           </div>
+
           <Card className="bg-background/80 backdrop-blur border-border/60">
             <CardHeader>
-              <CardTitle>Start your free audit</CardTitle>
-              <CardDescription>Takes ~30 seconds. Results generated by GPT-5.</CardDescription>
+              <CardTitle>Analyze your website</CardTitle>
+              <CardDescription>Enter your domain — we&apos;ll open a full audit report instantly.</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={submit} className="grid gap-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-xs">Your name</Label>
-                    <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Jane Smith" /></div>
-                  <div><Label className="text-xs">Email *</Label>
-                    <Input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="jane@company.com" /></div>
+              <div className="grid gap-3">
+                <div className="relative">
+                  <Globe className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                  <Input
+                    value={url}
+                    onChange={e => setUrl(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') analyze() }}
+                    placeholder="yourbusiness.com"
+                    className="pl-9 h-12 text-base"
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div><Label className="text-xs">Website *</Label>
-                    <Input required value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="yourbusiness.com" /></div>
-                  <div><Label className="text-xs">Industry</Label>
-                    <Input value={form.industry} onChange={e => setForm({ ...form, industry: e.target.value })} placeholder="e.g. SaaS, Local services" /></div>
-                </div>
-                <div><Label className="text-xs">Your growth goals</Label>
-                  <Textarea rows={2} value={form.goals} onChange={e => setForm({ ...form, goals: e.target.value })} placeholder="Double leads in 6 months..." /></div>
-                <div><Label className="text-xs">Biggest current challenge</Label>
-                  <Textarea rows={2} value={form.currentChallenges} onChange={e => setForm({ ...form, currentChallenges: e.target.value })} placeholder="Inconsistent lead flow, fragmented tools..." /></div>
-                <Button disabled={loading} type="submit" size="lg" className="bg-gradient-to-br from-blue-500 to-violet-500 hover:opacity-90">
-                  {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating audit…</> : <>Generate AI Audit <Sparkles className="w-4 h-4 ml-2" /></>}
+                <Button onClick={analyze} size="lg" className="h-12 bg-gradient-to-br from-blue-500 to-violet-500 hover:opacity-90 shadow-lg shadow-blue-500/20">
+                  Analyze My Site <ArrowUpRight className="w-4 h-4 ml-2" />
                 </Button>
-              </form>
+                <div className="text-xs text-muted-foreground text-center flex items-center justify-center gap-1.5">
+                  <Shield className="w-3 h-3" /> Powered by SearchAtlas · Opens in a new tab
+                </div>
+              </div>
+
+              <Separator className="my-5" />
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  { l: 'SEO Score', v: '0-100' },
+                  { l: 'Keywords', v: 'Tracked' },
+                  { l: 'Backlinks', v: 'Analyzed' },
+                ].map(x => (
+                  <div key={x.l} className="p-2 rounded-lg border border-border/60 bg-secondary/30">
+                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{x.l}</div>
+                    <div className="text-sm font-semibold mt-0.5">{x.v}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-violet-500/10 border border-blue-500/20 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold">Want us to fix what the audit finds?</div>
+                  <div className="text-xs text-muted-foreground">Book a discovery call — we&apos;ll build the system.</div>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => go('contact')}>Book call <ArrowRight className="w-3.5 h-3.5 ml-1.5" /></Button>
+              </div>
             </CardContent>
           </Card>
         </div>
-
-        {result && <AuditResult result={result} onBook={() => go('contact')} />}
       </div>
     </section>
   )
@@ -1004,6 +1010,13 @@ function AdminPortal({ user, go }) {
     toast.success(`Updated role to ${role}`)
   }
 
+  const linkProject = async (id, projectId, hostname) => {
+    const pid = projectId ? Number(projectId) : null
+    await fetch(`/api/admin/clients/${id}`, { method: 'PATCH', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ searchAtlasProjectId: pid, searchAtlasHostname: hostname || null }) })
+    setClients(clients.map(c => c.id === id ? { ...c, searchAtlasProjectId: pid, searchAtlasHostname: hostname || null } : c))
+    toast.success(pid ? `Linked to ${hostname || projectId}` : 'Unlinked')
+  }
+
   return (
     <div className="container mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
@@ -1111,18 +1124,47 @@ function AdminPortal({ user, go }) {
 
         <TabsContent value="clients">
           <Card className="bg-secondary/30 border-border/60">
-            <CardHeader><CardTitle>All clients</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>All clients</CardTitle>
+              <CardDescription>Link each client to a SearchAtlas rank-tracker project so their portal shows their live data.</CardDescription>
+            </CardHeader>
             <CardContent className="space-y-2">
               {clients.map(c => (
-                <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
-                  <div>
-                    <div className="text-sm font-medium">{c.name}</div>
-                    <div className="text-xs text-muted-foreground">{c.email}{c.company ? ` · ${c.company}` : ''}</div>
+                <div key={c.id} className="p-3 rounded-lg border border-border/60 bg-background/50 space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium flex items-center gap-2">{c.name}
+                        {c.searchAtlasHostname && <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-300 text-[10px]"><Globe className="w-2.5 h-2.5 mr-1" />{c.searchAtlasHostname}</Badge>}
+                      </div>
+                      <div className="text-xs text-muted-foreground">{c.email}{c.company ? ` · ${c.company}` : ''}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant={c.role === 'admin' ? 'default' : 'outline'}>{c.role}</Badge>
+                      {c.role !== 'admin' && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'admin')}>Make admin</Button>}
+                      {c.role === 'admin' && user?.email !== c.email && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'client')}>Demote</Button>}
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant={c.role === 'admin' ? 'default' : 'outline'}>{c.role}</Badge>
-                    {c.role !== 'admin' && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'admin')}>Make admin</Button>}
-                    {c.role === 'admin' && user?.email !== c.email && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'client')}>Demote</Button>}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Search className="w-3 h-3 text-blue-400" /> SearchAtlas project:</div>
+                    <select
+                      value={c.searchAtlasProjectId || ''}
+                      onChange={e => {
+                        const val = e.target.value
+                        const p = saProjects.find(x => String(x.id) === val)
+                        linkProject(c.id, val || null, p?.hostname || null)
+                      }}
+                      className="h-8 rounded-md border border-input bg-background px-2 text-xs flex-1 min-w-[200px]"
+                    >
+                      <option value="">— Not linked —</option>
+                      {saProjects.map(p => (
+                        <option key={p.id} value={p.id}>{p.hostname} (#{p.id})</option>
+                      ))}
+                    </select>
+                    {c.searchAtlasProjectId && (
+                      <Button size="sm" variant="ghost" onClick={() => linkProject(c.id, null, null)} className="text-rose-400 hover:text-rose-300 h-8">
+                        <X className="w-3 h-3 mr-1" />Unlink
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -258,15 +258,17 @@ Produce the audit JSON now.`
         { keyword: 'business growth strategy', position: 6, change: +3 },
       ]
 
-      // Try to pull real SearchAtlas project data
+      // Try to pull real SearchAtlas project data (user's linked project, else first available)
       let searchAtlas = null
       try {
         const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
         if (sa.ok && sa.body.results?.length) {
-          const p = sa.body.results[0]
+          const linkedId = user?.searchAtlasProjectId
+          const p = (linkedId && sa.body.results.find(x => x.id === linkedId)) || sa.body.results[0]
           searchAtlas = {
             hostname: p.hostname,
             projectId: p.id,
+            linked: !!(linkedId && linkedId === p.id),
             trackedKeywords: p.tracked_keywords_count,
             avgPosition: p.position_legends?.current_avg_position,
             positionDelta: p.position_legends?.position_delta,
@@ -493,7 +495,7 @@ Produce the audit JSON now.`
 
       if (path === '/admin/clients' && method === 'GET') {
         const list = await db.collection('users').find({}).sort({ createdAt: -1 }).toArray()
-        return json({ clients: list.map(u => ({ id: u.id, name: u.name, email: u.email, company: u.company, role: u.role, createdAt: u.createdAt })) })
+        return json({ clients: list.map(u => ({ id: u.id, name: u.name, email: u.email, company: u.company, role: u.role, searchAtlasProjectId: u.searchAtlasProjectId || null, searchAtlasHostname: u.searchAtlasHostname || null, createdAt: u.createdAt })) })
       }
 
       if (path === '/admin/audits' && method === 'GET') {
@@ -512,6 +514,8 @@ Produce the audit JSON now.`
         const $set = {}
         if (body.role) $set.role = body.role
         if (body.company !== undefined) $set.company = body.company
+        if ('searchAtlasProjectId' in body) $set.searchAtlasProjectId = body.searchAtlasProjectId
+        if ('searchAtlasHostname' in body) $set.searchAtlasHostname = body.searchAtlasHostname
         await db.collection('users').updateOne({ id }, { $set })
         return json({ ok: true })
       }
