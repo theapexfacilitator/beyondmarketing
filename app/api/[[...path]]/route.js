@@ -418,6 +418,147 @@ Produce the audit JSON now.`
       return json({ ok: true })
     }
 
+    // ===== Content Genius (AI content briefs) =====
+    if (path === '/content-genius/generate' && method === 'POST') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const body = await request.json()
+      const { keyword, targetAudience, tone, wordCount, businessContext } = body
+      if (!keyword) return json({ error: 'Keyword required' }, 400)
+
+      const db = await getDb()
+      const briefId = uuidv4()
+
+      // Pull SearchAtlas keyword context if the client has a linked project
+      const user = await db.collection('users').findOne({ id: decoded.id })
+      let saContext = ''
+      try {
+        if (user?.searchAtlasProjectId) {
+          const sa = await saFetch(`https://keyword.searchatlas.com/api/v1/rank-tracker/${user.searchAtlasProjectId}/keywords-details/`)
+          if (sa.ok) {
+            const kws = (sa.body.results || sa.body || []).slice(0, 25).map(k => `${k.keyword || k.name || ''} (pos ${k.position || k.current_position || '?'})`).filter(Boolean).join(', ')
+            if (kws) saContext = `\nExisting tracked keywords for this brand: ${kws}`
+          }
+        }
+      } catch (e) {}
+
+      const systemPrompt = `You are Beyond Marketing's Content Genius — a senior SEO content strategist. Produce a comprehensive, SEO-optimized content brief. Return STRICT JSON only:
+{
+  "title": "<compelling H1 title with primary keyword>",
+  "metaTitle": "<50-60 char meta title>",
+  "metaDescription": "<140-160 char meta description>",
+  "targetKeyword": "<primary keyword>",
+  "secondaryKeywords": ["<sk1>","<sk2>","<sk3>","<sk4>","<sk5>"],
+  "searchIntent": "<informational|commercial|transactional|navigational>",
+  "wordCount": <number>,
+  "outline": [
+    {"heading": "<H2 heading>", "level": "H2", "notes": "<what to cover>", "keywords": ["<kw>"]},
+    {"heading": "<H3 sub>", "level": "H3", "notes": "<detail>", "keywords": []}
+  ],
+  "hooks": ["<opening hook option 1>","<hook 2>","<hook 3>"],
+  "faqs": [{"q":"<question>","a":"<short answer>"}, {"q":"<q2>","a":"<a2>"}, {"q":"<q3>","a":"<a3>"}],
+  "cta": "<recommended call-to-action>",
+  "internalLinkIdeas": ["<idea 1>","<idea 2>","<idea 3>"],
+  "externalAuthorityLinks": ["<authority source topic 1>","<topic 2>"]
+}
+Be sharp, specific and premium. No markdown, only JSON.`
+
+      const userPrompt = `Primary keyword: ${keyword}
+Target audience: ${targetAudience || 'small-to-mid business owners'}
+Tone: ${tone || 'professional, clear, confident'}
+Word count target: ${wordCount || 1500}
+Business context: ${businessContext || 'A modern marketing agency called Beyond Marketing that builds connected business growth systems.'}${saContext}
+
+Produce the content brief JSON now.`
+
+      let brief
+      const tryModel = async (model) => {
+        const completion = await llm.chat.completions.create({
+          model,
+          messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+          response_format: { type: 'json_object' },
+        })
+        return JSON.parse(completion.choices[0].message.content)
+      }
+      try { brief = await tryModel('gpt-4o-mini') }
+      catch (e1) {
+        try { brief = await tryModel('gpt-4o') }
+        catch (e2) {
+          console.error('Content Genius LLM failed:', e2?.message || e2)
+          return json({ error: 'AI service unavailable. Please try again shortly.' }, 502)
+        }
+      }
+
+      const doc = { id: briefId, userId: decoded.id, keyword, targetAudience, tone, wordCount, businessContext, brief, createdAt: new Date() }
+      await db.collection('contentBriefs').insertOne(doc)
+      return json({ id: briefId, brief })
+    }
+
+    if (path === '/content-genius/briefs' && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const db = await getDb()
+      const list = await db.collection('contentBriefs').find({ userId: decoded.id }).sort({ createdAt: -1 }).limit(50).toArray()
+      return json({ briefs: list.map(b => ({ id: b.id, keyword: b.keyword, title: b.brief?.title, createdAt: b.createdAt })) })
+    }
+
+    if (path.startsWith('/content-genius/briefs/') && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const id = path.split('/')[3]
+      const db = await getDb()
+      const doc = await db.collection('contentBriefs').findOne({ id, userId: decoded.id })
+      if (!doc) return json({ error: 'Not found' }, 404)
+      return json({ id: doc.id, keyword: doc.keyword, brief: doc.brief, createdAt: doc.createdAt })
+    }
+
+    if (path.startsWith('/content-genius/briefs/') && method === 'DELETE') {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded) return json({ error: 'Unauthorized' }, 401)
+      const id = path.split('/')[3]
+      const db = await getDb()
+      await db.collection('contentBriefs').deleteOne({ id, userId: decoded.id })
+      return json({ ok: true })
+    }
+
+    // ===== White-Label Public Report =====
+    // Public endpoint (no auth). Uses SearchAtlas public_share_hash as the key.
+    if (path.startsWith('/report/') && method === 'GET') {
+      const hash = path.split('/')[2]
+      if (!hash) return json({ error: 'Missing hash' }, 400)
+      const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
+      if (!sa.ok) return json({ error: 'SearchAtlas unavailable' }, 502)
+      const project = (sa.body.results || []).find(p => p.public_share_hash === hash)
+      if (!project) return json({ error: 'Report not found' }, 404)
+
+      // Try to match to a client for branding
+      const db = await getDb()
+      const client = await db.collection('users').findOne({ searchAtlasProjectId: project.id })
+
+      return json({
+        report: {
+          hostname: project.hostname,
+          generatedAt: new Date().toISOString(),
+          updatedAt: project.targeted_keywords_updated_at,
+          client: client ? { name: client.name, company: client.company } : null,
+          metrics: {
+            trackedKeywords: project.tracked_keywords_count,
+            avgPosition: project.position_legends?.current_avg_position,
+            previousAvgPosition: project.position_legends?.previous_avg_position,
+            positionDelta: project.position_legends?.position_delta,
+            searchVisibility: project.search_visibility_report?.[0]?.sv,
+            searchVisibilityPrev: project.search_visibility_report?.[1]?.sv,
+            estimatedDailyTraffic: project.estimated_traffic_report?.[0]?.traffic,
+          },
+          serpsOverview: project.serps_overview?.[0] || null,
+          keywordsUpDown: project.keywords_up_down_report,
+          visibilityHistory: project.search_visibility_report || [],
+          trafficHistory: project.estimated_traffic_report || [],
+          publicShareHash: project.public_share_hash,
+        },
+      })
+    }
+
     // ===== SearchAtlas Proxy (server-side, key never leaks) =====
     if (path === '/searchatlas/projects' && method === 'GET') {
       const r = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')

@@ -28,6 +28,14 @@ next-env.d.ts
 # Production builds
 /build
 dist/
+
+# Environment files (secrets)
+.env
+.env.local
+.env.development
+.env.production
+.env*.local
+!.env.example
 dist
 
 # Environment files (comprehensive coverage)
