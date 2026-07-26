@@ -226,6 +226,43 @@ backend:
         agent: "testing"
         comment: "✅ VERIFIED: Dashboard merge logic working perfectly. (1) User with no projects/tasks: dashboard returns mock data (4 projects, 3 tasks without IDs). (2) Created 2 real projects and 2 real tasks for user. (3) GET /api/portal/dashboard now returns exactly 2 projects and 2 tasks (real data with IDs). (4) Verified all returned items have 'id' field (confirming real data). (5) Verified specific project/task IDs match created items. Dashboard correctly replaces mock data with real user data when available. KPIs, traffic, rankings, and notifications remain mock as expected."
 
+  - task: "SearchAtlas proxy endpoints (rank tracker + GBP)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW: GET /api/searchatlas/projects (rank tracker projects), GET /api/searchatlas/projects/:id/keywords, GET /api/searchatlas/gbp (Google Business locations). Uses X-API-Key header with SEARCHATLAS_API_KEY env var. Server-side proxy so key never reaches client. Verified live — returned real jaguarstone.ca project (13 tracked keywords, 51.03% search visibility) and 2 GBP locations (Jaguarstone 4.8★, SerapoX)."
+
+  - task: "Admin seed + admin-only endpoints"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "NEW: On first API call, seedAdmin() creates a user with email=ADMIN_SEED_EMAIL (admin@beyond.local) / password=ADMIN_SEED_PASSWORD (BeyondAdmin2025!) with role=admin. Endpoints under /api/admin/* require Bearer JWT AND decoded.role === 'admin', else 403. Endpoints: GET /admin/overview (stats + recent), GET /admin/clients, GET /admin/audits, GET /admin/contacts, PATCH /admin/clients/:id (change role). Verified: admin login returns role=admin, client token returns 403 on /admin/overview."
+
+  - task: "Dashboard includes live SearchAtlas snapshot"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/portal/dashboard now enriches response with 'searchAtlas' object containing hostname, avgPosition, positionDelta, searchVisibility, serpsOverview, keywordsUpDown, estimatedTraffic, publicShareHash pulled from the first SearchAtlas rank tracker project. Verified live: returns jaguarstone.ca with 51.03% visibility and 13 tracked keywords."
+
+
 
 frontend:
   - task: "Marketing site (Home, Approach, Plan, Build, Grow, Connected, Learning, Pricing, Contact)"

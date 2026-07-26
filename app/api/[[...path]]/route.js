@@ -24,6 +24,49 @@ const llm = new OpenAI({
 })
 
 const JWT_SECRET = process.env.JWT_SECRET || 'beyond-marketing-dev-secret-key'
+const SEARCHATLAS_KEY = process.env.SEARCHATLAS_API_KEY
+
+// SearchAtlas API helper
+async function saFetch(url, opts = {}) {
+  const r = await fetch(url, {
+    ...opts,
+    headers: { 'X-API-Key': SEARCHATLAS_KEY, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  })
+  const text = await r.text()
+  let body
+  try { body = JSON.parse(text) } catch { body = text }
+  return { status: r.status, ok: r.ok, body }
+}
+
+// Seed admin on first module load
+let adminSeeded = false
+async function seedAdmin() {
+  if (adminSeeded) return
+  adminSeeded = true
+  try {
+    const db = await getDb()
+    const email = (process.env.ADMIN_SEED_EMAIL || 'admin@beyond.local').toLowerCase()
+    const existing = await db.collection('users').findOne({ email })
+    if (existing) {
+      if (existing.role !== 'admin') {
+        await db.collection('users').updateOne({ email }, { $set: { role: 'admin' } })
+      }
+      return
+    }
+    const password = process.env.ADMIN_SEED_PASSWORD || 'BeyondAdmin2025!'
+    const hash = await bcrypt.hash(password, 10)
+    await db.collection('users').insertOne({
+      id: uuidv4(),
+      name: 'Beyond Admin',
+      email,
+      company: 'Beyond Marketing',
+      password: hash,
+      role: 'admin',
+      createdAt: new Date(),
+    })
+    console.log(`[seed] Admin account created: ${email}`)
+  } catch (e) { console.error('Admin seed failed:', e?.message || e); adminSeeded = false }
+}
 
 function json(data, status = 200) {
   return NextResponse.json(data, { status })
@@ -40,6 +83,7 @@ function verifyToken(token) {
 }
 
 async function handler(request, ctx) {
+  await seedAdmin()
   const params = await ctx.params
   const segments = params?.path || []
   const path = '/' + segments.join('/')
@@ -214,6 +258,27 @@ Produce the audit JSON now.`
         { keyword: 'business growth strategy', position: 6, change: +3 },
       ]
 
+      // Try to pull real SearchAtlas project data
+      let searchAtlas = null
+      try {
+        const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
+        if (sa.ok && sa.body.results?.length) {
+          const p = sa.body.results[0]
+          searchAtlas = {
+            hostname: p.hostname,
+            projectId: p.id,
+            trackedKeywords: p.tracked_keywords_count,
+            avgPosition: p.position_legends?.current_avg_position,
+            positionDelta: p.position_legends?.position_delta,
+            searchVisibility: p.search_visibility_report?.[0]?.sv,
+            serpsOverview: p.serps_overview?.[0] || null,
+            keywordsUpDown: p.keywords_up_down_report,
+            estimatedTraffic: p.estimated_traffic_report,
+            publicShareHash: p.public_share_hash,
+          }
+        }
+      } catch (e) { /* SearchAtlas optional */ }
+
       const projects = realProjects.length ? realProjects.map(p => ({ id: p.id, name: p.name, progress: p.progress, phase: p.phase, status: p.status })) : [
         { name: 'SEO & Local Authority', progress: 68, phase: 'Grow', status: 'On track' },
         { name: 'HubSpot CRM Setup', progress: 92, phase: 'Build', status: 'Wrapping up' },
@@ -234,7 +299,7 @@ Produce the audit JSON now.`
       ]
 
       return json({
-        user: user ? { name: user.name, email: user.email, company: user.company } : null,
+        user: user ? { name: user.name, email: user.email, company: user.company, role: user.role } : null,
         healthScore: 78,
         kpis: {
           organicTraffic: { value: '18,420', delta: '+24%' },
@@ -247,6 +312,7 @@ Produce the audit JSON now.`
         projects,
         tasks,
         notifications,
+        searchAtlas,
       })
     }
 
@@ -348,6 +414,107 @@ Produce the audit JSON now.`
       const db = await getDb()
       await db.collection('tasks').deleteOne({ id, userId: decoded.id })
       return json({ ok: true })
+    }
+
+    // ===== SearchAtlas Proxy (server-side, key never leaks) =====
+    if (path === '/searchatlas/projects' && method === 'GET') {
+      const r = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
+      if (!r.ok) return json({ error: 'SearchAtlas error', detail: r.body }, r.status)
+      const projects = (r.body.results || []).map(p => ({
+        id: p.id,
+        hostname: p.hostname,
+        trackedKeywords: p.tracked_keywords_count,
+        targetedKeywords: p.targeted_keywords_count,
+        currentAvgPosition: p.position_legends?.current_avg_position,
+        previousAvgPosition: p.position_legends?.previous_avg_position,
+        positionDelta: p.position_legends?.position_delta,
+        searchVisibility: p.search_visibility_report?.[0]?.sv,
+        serpsOverview: p.serps_overview?.[0] || null,
+        keywordsUpDown: p.keywords_up_down_report,
+        estimatedTraffic: p.estimated_traffic_report,
+        publicShareHash: p.public_share_hash,
+        refreshInterval: p.refresh_interval,
+        updatedAt: p.targeted_keywords_updated_at,
+      }))
+      return json({ projects })
+    }
+
+    if (path.startsWith('/searchatlas/projects/') && path.endsWith('/keywords') && method === 'GET') {
+      const id = path.split('/')[3]
+      const r = await saFetch(`https://keyword.searchatlas.com/api/v1/rank-tracker/${id}/keywords-details/`)
+      if (!r.ok) return json({ error: 'SearchAtlas error', detail: r.body }, r.status)
+      return json({ keywords: r.body.results || r.body })
+    }
+
+    if (path === '/searchatlas/gbp' && method === 'GET') {
+      const r = await saFetch('https://keyword.searchatlas.com/api/v3/google-business/')
+      if (!r.ok) return json({ error: 'SearchAtlas error', detail: r.body }, r.status)
+      const businesses = (r.body.results || []).map(b => ({
+        id: b.id,
+        name: b.business_name,
+        address: b.address,
+        rating: b.rating,
+        reviews: b.reviews,
+        keywords: b.keywords,
+        publicShareHash: b.public_share_hash,
+        keywordBreakdown: (b.keyword_breakdown || []).map(k => ({
+          keyword: k.keyword,
+          averagePosition: k.gmb_average_position,
+          bestPosition: k.gmb_best_position,
+          worstPosition: k.gmb_worst_position,
+          gridSize: k.grid_size,
+        })),
+      }))
+      return json({ businesses })
+    }
+
+    // ===== ADMIN =====
+    if (path.startsWith('/admin/')) {
+      const decoded = verifyToken(getToken(request))
+      if (!decoded || decoded.role !== 'admin') return json({ error: 'Admin only' }, 403)
+      const db = await getDb()
+
+      if (path === '/admin/overview' && method === 'GET') {
+        const [users, audits, contacts, projects, tasks] = await Promise.all([
+          db.collection('users').countDocuments({}),
+          db.collection('audits').countDocuments({}),
+          db.collection('contacts').countDocuments({}),
+          db.collection('projects').countDocuments({}),
+          db.collection('tasks').countDocuments({}),
+        ])
+        const recentUsers = await db.collection('users').find({}).sort({ createdAt: -1 }).limit(10).toArray()
+        const recentAudits = await db.collection('audits').find({}).sort({ createdAt: -1 }).limit(10).toArray()
+        return json({
+          stats: { users, audits, contacts, projects, tasks },
+          recentUsers: recentUsers.map(u => ({ id: u.id, name: u.name, email: u.email, company: u.company, role: u.role, createdAt: u.createdAt })),
+          recentAudits: recentAudits.map(a => ({ id: a.id, name: a.name, email: a.email, website: a.website, industry: a.industry, status: a.status, healthScore: a.audit?.healthScore, createdAt: a.createdAt })),
+        })
+      }
+
+      if (path === '/admin/clients' && method === 'GET') {
+        const list = await db.collection('users').find({}).sort({ createdAt: -1 }).toArray()
+        return json({ clients: list.map(u => ({ id: u.id, name: u.name, email: u.email, company: u.company, role: u.role, createdAt: u.createdAt })) })
+      }
+
+      if (path === '/admin/audits' && method === 'GET') {
+        const list = await db.collection('audits').find({}).sort({ createdAt: -1 }).limit(100).toArray()
+        return json({ audits: list.map(a => ({ id: a.id, name: a.name, email: a.email, website: a.website, industry: a.industry, status: a.status, healthScore: a.audit?.healthScore, positioning: a.audit?.positioning, createdAt: a.createdAt })) })
+      }
+
+      if (path === '/admin/contacts' && method === 'GET') {
+        const list = await db.collection('contacts').find({}).sort({ createdAt: -1 }).limit(100).toArray()
+        return json({ contacts: list.map(c => ({ id: c.id, name: c.name, email: c.email, company: c.company, message: c.message, createdAt: c.createdAt })) })
+      }
+
+      if (path.startsWith('/admin/clients/') && method === 'PATCH') {
+        const id = path.split('/')[3]
+        const body = await request.json()
+        const $set = {}
+        if (body.role) $set.role = body.role
+        if (body.company !== undefined) $set.company = body.company
+        await db.collection('users').updateOne({ id }, { $set })
+        return json({ ok: true })
+      }
     }
 
     return json({ error: 'Not found', path, method }, 404)

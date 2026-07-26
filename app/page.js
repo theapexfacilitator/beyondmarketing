@@ -962,6 +962,332 @@ function Auth({ mode, setUser, go }) {
   )
 }
 
+// ---------- Admin Portal ----------
+function AdminPortal({ user, go }) {
+  const [tab, setTab] = useState('overview')
+  const [overview, setOverview] = useState(null)
+  const [clients, setClients] = useState([])
+  const [audits, setAudits] = useState([])
+  const [contacts, setContacts] = useState([])
+  const [saProjects, setSaProjects] = useState([])
+  const [saGbp, setSaGbp] = useState([])
+  const [selectedAudit, setSelectedAudit] = useState(null)
+
+  const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
+  const h = { Authorization: `Bearer ${token}` }
+
+  useEffect(() => {
+    const load = async () => {
+      const [ov, cl, au, co, sap, gbp] = await Promise.all([
+        fetch('/api/admin/overview', { headers: h }).then(r => r.ok ? r.json() : null),
+        fetch('/api/admin/clients', { headers: h }).then(r => r.ok ? r.json() : { clients: [] }),
+        fetch('/api/admin/audits', { headers: h }).then(r => r.ok ? r.json() : { audits: [] }),
+        fetch('/api/admin/contacts', { headers: h }).then(r => r.ok ? r.json() : { contacts: [] }),
+        fetch('/api/searchatlas/projects').then(r => r.ok ? r.json() : { projects: [] }),
+        fetch('/api/searchatlas/gbp').then(r => r.ok ? r.json() : { businesses: [] }),
+      ])
+      setOverview(ov)
+      setClients(cl.clients || [])
+      setAudits(au.audits || [])
+      setContacts(co.contacts || [])
+      setSaProjects(sap.projects || [])
+      setSaGbp(gbp.businesses || [])
+    }
+    load()
+  }, [])
+
+  if (!overview) return <div className="container mx-auto px-4 py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
+
+  const promoteUser = async (id, role) => {
+    await fetch(`/api/admin/clients/${id}`, { method: 'PATCH', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
+    setClients(clients.map(c => c.id === id ? { ...c, role } : c))
+    toast.success(`Updated role to ${role}`)
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-10">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300 mb-2">
+            <Shield className="w-3 h-3 mr-1.5" /> Admin
+          </Badge>
+          <h1 className="text-3xl font-semibold">Agency Operations</h1>
+          <p className="text-sm text-muted-foreground">All clients, audits, contacts and SEO data — one view.</p>
+        </div>
+      </div>
+
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList className="mb-6">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="clients">Clients ({overview.stats.users})</TabsTrigger>
+          <TabsTrigger value="audits">AI Audits ({overview.stats.audits})</TabsTrigger>
+          <TabsTrigger value="contacts">Leads ({overview.stats.contacts})</TabsTrigger>
+          <TabsTrigger value="searchatlas">SearchAtlas</TabsTrigger>
+          <TabsTrigger value="localseo">Local SEO</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
+            {[
+              { l: 'Total clients', v: overview.stats.users, i: Users, c: 'text-blue-400' },
+              { l: 'AI audits', v: overview.stats.audits, i: Sparkles, c: 'text-violet-400' },
+              { l: 'Discovery leads', v: overview.stats.contacts, i: MessageSquare, c: 'text-emerald-400' },
+              { l: 'Live projects', v: overview.stats.projects, i: Hammer, c: 'text-amber-400' },
+              { l: 'Open tasks', v: overview.stats.tasks, i: Circle, c: 'text-rose-400' },
+            ].map(x => (
+              <Card key={x.l} className="bg-secondary/30 border-border/60">
+                <CardContent className="p-5">
+                  <x.i className={`w-5 h-5 ${x.c} mb-2`} />
+                  <div className="text-3xl font-semibold">{x.v}</div>
+                  <div className="text-xs text-muted-foreground mt-1">{x.l}</div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-4">
+            <Card className="bg-secondary/30 border-border/60">
+              <CardHeader><CardTitle>Recent clients</CardTitle><CardDescription>Latest registrations</CardDescription></CardHeader>
+              <CardContent className="space-y-2">
+                {overview.recentUsers.slice(0, 5).map(u => (
+                  <div key={u.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
+                    <div>
+                      <div className="text-sm font-medium">{u.name}</div>
+                      <div className="text-xs text-muted-foreground">{u.email}{u.company ? ` · ${u.company}` : ''}</div>
+                    </div>
+                    <Badge variant={u.role === 'admin' ? 'default' : 'outline'}>{u.role}</Badge>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+            <Card className="bg-secondary/30 border-border/60">
+              <CardHeader><CardTitle>Recent AI audits</CardTitle><CardDescription>Lead magnet conversions</CardDescription></CardHeader>
+              <CardContent className="space-y-2">
+                {overview.recentAudits.slice(0, 5).map(a => (
+                  <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{a.website}</div>
+                      <div className="text-xs text-muted-foreground truncate">{a.email}</div>
+                    </div>
+                    {typeof a.healthScore === 'number' && (
+                      <Badge variant="outline" className="border-blue-500/30 text-blue-300">{a.healthScore}/100</Badge>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          </div>
+
+          {saProjects[0] && (
+            <Card className="bg-gradient-to-br from-blue-500/10 to-violet-500/10 border-blue-500/30">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Search className="w-4 h-4 text-blue-400" />
+                  <CardTitle>SearchAtlas — Live SEO Snapshot</CardTitle>
+                </div>
+                <CardDescription>{saProjects[0].hostname} · {saProjects[0].trackedKeywords} tracked keywords</CardDescription>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Avg. position</div>
+                  <div className="text-2xl font-semibold">{saProjects[0].currentAvgPosition ?? '—'}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Search visibility</div>
+                  <div className="text-2xl font-semibold">{saProjects[0].searchVisibility?.toFixed(1) ?? '—'}%</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Position 1</div>
+                  <div className="text-2xl font-semibold text-emerald-400">{saProjects[0].serpsOverview?.serp_1 ?? 0}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Positions 2-10</div>
+                  <div className="text-2xl font-semibold">{(saProjects[0].serpsOverview?.serp_2_3 ?? 0) + (saProjects[0].serpsOverview?.serp_4_10 ?? 0)}</div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="clients">
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader><CardTitle>All clients</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {clients.map(c => (
+                <div key={c.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
+                  <div>
+                    <div className="text-sm font-medium">{c.name}</div>
+                    <div className="text-xs text-muted-foreground">{c.email}{c.company ? ` · ${c.company}` : ''}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={c.role === 'admin' ? 'default' : 'outline'}>{c.role}</Badge>
+                    {c.role !== 'admin' && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'admin')}>Make admin</Button>}
+                    {c.role === 'admin' && user?.email !== c.email && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'client')}>Demote</Button>}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="audits">
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader><CardTitle>AI Marketing Audits</CardTitle><CardDescription>All submissions from the homepage lead magnet</CardDescription></CardHeader>
+            <CardContent className="space-y-2">
+              {audits.map(a => (
+                <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50 hover:border-blue-500/40 cursor-pointer" onClick={() => setSelectedAudit(a)}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{a.website} <span className="text-muted-foreground font-normal">· {a.industry || '—'}</span></div>
+                    <div className="text-xs text-muted-foreground truncate">{a.name || '—'} &lt;{a.email}&gt;</div>
+                    {a.positioning && <div className="text-xs text-muted-foreground truncate mt-1 italic">{a.positioning}</div>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {typeof a.healthScore === 'number' && <Badge variant="outline" className="border-blue-500/30 text-blue-300">{a.healthScore}</Badge>}
+                    <Badge variant="outline">{a.status}</Badge>
+                  </div>
+                </div>
+              ))}
+              {!audits.length && <div className="text-sm text-muted-foreground p-4 text-center">No audits yet.</div>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="contacts">
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader><CardTitle>Discovery call requests</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              {contacts.map(c => (
+                <div key={c.id} className="p-4 rounded-lg border border-border/60 bg-background/50">
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-sm font-medium">{c.name} {c.company ? <span className="text-muted-foreground font-normal">· {c.company}</span> : null}</div>
+                    <div className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mb-2">{c.email}</div>
+                  <div className="text-sm">{c.message}</div>
+                </div>
+              ))}
+              {!contacts.length && <div className="text-sm text-muted-foreground p-4 text-center">No contact submissions yet.</div>}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="searchatlas" className="space-y-4">
+          {saProjects.map(p => (
+            <Card key={p.id} className="bg-secondary/30 border-border/60">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Globe className="w-4 h-4 text-blue-400" /> {p.hostname}</CardTitle>
+                    <CardDescription>{p.trackedKeywords} tracked keywords · Updated {new Date(p.updatedAt).toLocaleDateString()}</CardDescription>
+                  </div>
+                  {p.publicShareHash && (
+                    <a href={`https://keyword.searchatlas.com/keyword-projects/${p.publicShareHash}`} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline">Open in SearchAtlas <ArrowUpRight className="w-3.5 h-3.5 ml-1" /></Button>
+                    </a>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Avg. position</div>
+                  <div className="text-2xl font-semibold">{p.currentAvgPosition ?? '—'}</div>
+                  <div className={`text-xs mt-1 ${p.positionDelta > 0 ? 'text-emerald-400' : p.positionDelta < 0 ? 'text-rose-400' : 'text-muted-foreground'}`}>Δ {p.positionDelta ?? 0}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Search visibility</div>
+                  <div className="text-2xl font-semibold">{p.searchVisibility?.toFixed(1) ?? '—'}%</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Keywords ↑ / ↓</div>
+                  <div className="text-2xl font-semibold">
+                    <span className="text-emerald-400">{p.keywordsUpDown?.keywords_up ?? 0}</span>
+                    <span className="text-muted-foreground mx-1">/</span>
+                    <span className="text-rose-400">{p.keywordsUpDown?.keywords_down ?? 0}</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Estimated daily traffic</div>
+                  <div className="text-2xl font-semibold">{p.estimatedTraffic?.[0]?.traffic?.toFixed(0) ?? '—'}</div>
+                </div>
+                {p.serpsOverview && (
+                  <div className="md:col-span-4 p-3 rounded-lg bg-background/50 border border-border/60">
+                    <div className="text-xs text-muted-foreground mb-2">SERP distribution</div>
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { l: 'Top 1', v: p.serpsOverview.serp_1, c: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+                        { l: '2-3', v: p.serpsOverview.serp_2_3, c: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+                        { l: '4-10', v: p.serpsOverview.serp_4_10, c: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
+                        { l: '11-20', v: p.serpsOverview.serp_11_20, c: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                        { l: '21-50', v: p.serpsOverview.serp_21_50, c: 'bg-orange-500/20 text-orange-300 border-orange-500/30' },
+                        { l: '51-100', v: p.serpsOverview.serp_51_100, c: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+                      ].map(s => (
+                        <div key={s.l} className={`px-3 py-1.5 rounded-md border text-xs font-medium ${s.c}`}>{s.l}: {s.v}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+          {!saProjects.length && <div className="text-sm text-muted-foreground p-4 text-center">No SearchAtlas projects.</div>}
+        </TabsContent>
+
+        <TabsContent value="localseo" className="space-y-4">
+          {saGbp.map(b => (
+            <Card key={b.id} className="bg-secondary/30 border-border/60">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Globe className="w-4 h-4 text-emerald-400" /> {b.name}</CardTitle>
+                    <CardDescription>{b.address || 'No address set'}</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 text-amber-400"><Star className="w-4 h-4 fill-amber-400" /><span className="text-sm font-semibold">{b.rating || '—'}</span></div>
+                    <div className="text-xs text-muted-foreground">({b.reviews} reviews)</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {b.keywordBreakdown.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="text-xs text-muted-foreground uppercase tracking-widest">Grid Rankings</div>
+                    {b.keywordBreakdown.map((k, i) => (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/60">
+                        <div className="text-sm font-medium">"{k.keyword}"</div>
+                        <div className="flex items-center gap-4 text-xs">
+                          <div><span className="text-muted-foreground">avg</span> <span className="font-semibold">{k.averagePosition?.toFixed(1)}</span></div>
+                          <div><span className="text-muted-foreground">best</span> <span className="font-semibold text-emerald-400">#{k.bestPosition}</span></div>
+                          <div><span className="text-muted-foreground">grid</span> <span className="font-semibold">{k.gridSize}×{k.gridSize}</span></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="text-sm text-muted-foreground">No keyword grids configured.</div>}
+              </CardContent>
+            </Card>
+          ))}
+          {!saGbp.length && <div className="text-sm text-muted-foreground p-4 text-center">No Google Business locations connected.</div>}
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={!!selectedAudit} onOpenChange={(o) => !o && setSelectedAudit(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Audit for {selectedAudit?.website}</DialogTitle></DialogHeader>
+          {selectedAudit && (
+            <div className="space-y-3 text-sm">
+              <div><span className="text-muted-foreground">Contact:</span> {selectedAudit.name} &lt;{selectedAudit.email}&gt;</div>
+              <div><span className="text-muted-foreground">Industry:</span> {selectedAudit.industry || '—'}</div>
+              <div><span className="text-muted-foreground">Health score:</span> <span className="text-2xl font-semibold text-blue-400">{selectedAudit.healthScore ?? '—'}</span></div>
+              <div><span className="text-muted-foreground">Positioning:</span> {selectedAudit.positioning}</div>
+              <div><span className="text-muted-foreground">Submitted:</span> {new Date(selectedAudit.createdAt).toLocaleString()}</div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 // ---------- Portal ----------
 function Portal({ user, go }) {
   const [data, setData] = useState(null)
@@ -1144,6 +1470,46 @@ function Portal({ user, go }) {
         </TabsContent>
 
         <TabsContent value="seo" className="space-y-6">
+          {data.searchAtlas && (
+            <Card className="bg-gradient-to-br from-blue-500/10 to-violet-500/10 border-blue-500/30">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-blue-400" /> Live from SearchAtlas</CardTitle>
+                    <CardDescription>{data.searchAtlas.hostname} · {data.searchAtlas.trackedKeywords} tracked keywords</CardDescription>
+                  </div>
+                  {data.searchAtlas.publicShareHash && (
+                    <a href={`https://keyword.searchatlas.com/keyword-projects/${data.searchAtlas.publicShareHash}`} target="_blank" rel="noopener noreferrer">
+                      <Button size="sm" variant="outline">Open full report <ArrowUpRight className="w-3.5 h-3.5 ml-1" /></Button>
+                    </a>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="grid md:grid-cols-4 gap-3">
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Avg. position</div>
+                  <div className="text-2xl font-semibold">{data.searchAtlas.avgPosition ?? '—'}</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Search visibility</div>
+                  <div className="text-2xl font-semibold">{data.searchAtlas.searchVisibility?.toFixed(1) ?? '—'}%</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Keywords ↑ / ↓</div>
+                  <div className="text-2xl font-semibold">
+                    <span className="text-emerald-400">{data.searchAtlas.keywordsUpDown?.keywords_up ?? 0}</span>
+                    <span className="text-muted-foreground mx-1">/</span>
+                    <span className="text-rose-400">{data.searchAtlas.keywordsUpDown?.keywords_down ?? 0}</span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                  <div className="text-xs text-muted-foreground">Est. daily traffic</div>
+                  <div className="text-2xl font-semibold">{data.searchAtlas.estimatedTraffic?.[0]?.traffic?.toFixed(0) ?? '—'}</div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <Card className="bg-secondary/30 border-border/60">
             <CardHeader><CardTitle>Keyword Rankings</CardTitle><CardDescription>SearchAtlas connected · last updated 2h ago</CardDescription></CardHeader>
             <CardContent>
@@ -1299,7 +1665,7 @@ function App() {
       case 'contact': return <Contact go={go} />
       case 'login': return <Auth mode="login" setUser={setUser} go={go} />
       case 'register': return <Auth mode="register" setUser={setUser} go={go} />
-      case 'portal': return user ? <Portal user={user} go={go} /> : <Auth mode="login" setUser={setUser} go={go} />
+      case 'portal': return user ? (user.role === 'admin' ? <AdminPortal user={user} go={go} /> : <Portal user={user} go={go} />) : <Auth mode="login" setUser={setUser} go={go} />
       default: return <Home go={go} />
     }
   })()
