@@ -1449,88 +1449,173 @@ function ContentGenius() {
   )
 }
 
-// ---------- Admin Portal ----------
+// ---------- Admin Portal (Functional CRM) ----------
+const LEAD_STATUSES = [
+  { value: 'new', label: 'New', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+  { value: 'contacted', label: 'Contacted', color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+  { value: 'qualified', label: 'Qualified', color: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
+  { value: 'won', label: 'Won', color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
+  { value: 'lost', label: 'Lost', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+]
+
+function StatusPill({ value, onChange }) {
+  const s = LEAD_STATUSES.find(x => x.value === value) || LEAD_STATUSES[0]
+  return (
+    <select value={value || 'new'} onChange={e => onChange(e.target.value)}
+      className={`h-7 rounded-md border px-2 text-xs font-medium ${s.color}`}>
+      {LEAD_STATUSES.map(x => <option key={x.value} value={x.value} className="bg-background text-foreground">{x.label}</option>)}
+    </select>
+  )
+}
+
 function AdminPortal({ user, go }) {
   const [tab, setTab] = useState('overview')
   const [overview, setOverview] = useState(null)
   const [clients, setClients] = useState([])
   const [audits, setAudits] = useState([])
   const [contacts, setContacts] = useState([])
+  const [allProjects, setAllProjects] = useState([])
   const [saProjects, setSaProjects] = useState([])
-  const [saGbp, setSaGbp] = useState([])
-  const [selectedAudit, setSelectedAudit] = useState(null)
+  const [refresh, setRefresh] = useState(0)
+
+  const [editClient, setEditClient] = useState(null) // client being edited (or {} for new)
+  const [viewAudit, setViewAudit] = useState(null)
+  const [viewLead, setViewLead] = useState(null)
+  const [newProject, setNewProject] = useState({ userId: '', name: '', phase: 'Plan' })
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
-  const h = { Authorization: `Bearer ${token}` }
+  const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
   useEffect(() => {
     const load = async () => {
-      const [ov, cl, au, co, sap, gbp] = await Promise.all([
+      const [ov, cl, au, co, ap, sap] = await Promise.all([
         fetch('/api/admin/overview', { headers: h }).then(r => r.ok ? r.json() : null),
         fetch('/api/admin/clients', { headers: h }).then(r => r.ok ? r.json() : { clients: [] }),
         fetch('/api/admin/audits', { headers: h }).then(r => r.ok ? r.json() : { audits: [] }),
         fetch('/api/admin/contacts', { headers: h }).then(r => r.ok ? r.json() : { contacts: [] }),
-        fetch('/api/searchatlas/projects').then(r => r.ok ? r.json() : { projects: [] }),
-        fetch('/api/searchatlas/gbp').then(r => r.ok ? r.json() : { businesses: [] }),
+        fetch('/api/admin/all-projects', { headers: h }).then(r => r.ok ? r.json() : { projects: [] }),
+        fetch('/api/searchatlas/projects', { headers: h }).then(r => r.ok ? r.json() : { projects: [] }),
       ])
       setOverview(ov)
       setClients(cl.clients || [])
       setAudits(au.audits || [])
       setContacts(co.contacts || [])
+      setAllProjects(ap.projects || [])
       setSaProjects(sap.projects || [])
-      setSaGbp(gbp.businesses || [])
     }
     load()
-  }, [])
+  }, [refresh])
 
   if (!overview) return <div className="container mx-auto px-4 py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
 
-  const promoteUser = async (id, role) => {
-    await fetch(`/api/admin/clients/${id}`, { method: 'PATCH', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ role }) })
-    setClients(clients.map(c => c.id === id ? { ...c, role } : c))
-    toast.success(`Updated role to ${role}`)
+  // ===== Client actions =====
+  const saveClient = async (data) => {
+    const isNew = !data.id
+    const url = isNew ? '/api/admin/clients' : `/api/admin/clients/${data.id}`
+    const method = isNew ? 'POST' : 'PATCH'
+    const body = { ...data }
+    if (!isNew) delete body.id
+    const r = await fetch(url, { method, headers: h, body: JSON.stringify(body) })
+    const d = await r.json()
+    if (!r.ok) { toast.error(d.error || 'Failed'); return false }
+    if (isNew && d.tempPassword) {
+      toast.success(`Client created. Temp password: ${d.tempPassword}`, { duration: 15000 })
+    } else {
+      toast.success(isNew ? 'Client created' : 'Client updated')
+    }
+    setEditClient(null)
+    setRefresh(x => x + 1)
+    return true
   }
 
-  const linkProject = async (id, projectId, hostname) => {
-    const pid = projectId ? Number(projectId) : null
-    await fetch(`/api/admin/clients/${id}`, { method: 'PATCH', headers: { ...h, 'Content-Type': 'application/json' }, body: JSON.stringify({ searchAtlasProjectId: pid, searchAtlasHostname: hostname || null }) })
-    setClients(clients.map(c => c.id === id ? { ...c, searchAtlasProjectId: pid, searchAtlasHostname: hostname || null } : c))
-    toast.success(pid ? `Linked to ${hostname || projectId}` : 'Unlinked')
+  const deleteClient = async (c) => {
+    if (!confirm(`Delete ${c.name} (${c.email}) and all their projects/tasks? This cannot be undone.`)) return
+    const r = await fetch(`/api/admin/clients/${c.id}`, { method: 'DELETE', headers: h })
+    if (r.ok) { toast.success('Client deleted'); setRefresh(x => x + 1) }
+    else { const d = await r.json(); toast.error(d.error || 'Failed') }
+  }
+
+  // ===== Audit actions =====
+  const updateAudit = async (id, patch) => {
+    await fetch(`/api/admin/audits/${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(patch) })
+    setAudits(prev => prev.map(a => a.id === id ? { ...a, ...patch } : a))
+    if (viewAudit?.id === id) setViewAudit({ ...viewAudit, ...patch })
+  }
+  const deleteAudit = async (id) => {
+    if (!confirm('Delete this audit?')) return
+    await fetch(`/api/admin/audits/${id}`, { method: 'DELETE', headers: h })
+    setAudits(prev => prev.filter(a => a.id !== id))
+    setViewAudit(null)
+    toast.success('Audit deleted')
+  }
+
+  // ===== Contact actions =====
+  const updateContact = async (id, patch) => {
+    await fetch(`/api/admin/contacts/${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(patch) })
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...patch } : c))
+    if (viewLead?.id === id) setViewLead({ ...viewLead, ...patch })
+  }
+  const deleteContact = async (id) => {
+    if (!confirm('Delete this lead?')) return
+    await fetch(`/api/admin/contacts/${id}`, { method: 'DELETE', headers: h })
+    setContacts(prev => prev.filter(c => c.id !== id))
+    setViewLead(null)
+    toast.success('Lead deleted')
+  }
+
+  // ===== Project actions =====
+  const createProject = async (e) => {
+    e.preventDefault()
+    if (!newProject.userId || !newProject.name) return toast.error('Client & name required')
+    const r = await fetch('/api/admin/all-projects', { method: 'POST', headers: h, body: JSON.stringify(newProject) })
+    if (r.ok) { toast.success('Project created'); setNewProject({ userId: '', name: '', phase: 'Plan' }); setRefresh(x => x + 1) }
+  }
+  const updateProject = async (id, patch) => {
+    await fetch(`/api/admin/all-projects/${id}`, { method: 'PATCH', headers: h, body: JSON.stringify(patch) })
+    setAllProjects(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p))
+  }
+  const deleteProject = async (id) => {
+    if (!confirm('Delete this project?')) return
+    await fetch(`/api/admin/all-projects/${id}`, { method: 'DELETE', headers: h })
+    setAllProjects(prev => prev.filter(p => p.id !== id))
+    toast.success('Project deleted')
   }
 
   return (
     <div className="container mx-auto px-4 py-10">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300 mb-2">
-            <Shield className="w-3 h-3 mr-1.5" /> Admin
+            <Shield className="w-3 h-3 mr-1.5" /> Admin — {user?.email}
           </Badge>
-          <h1 className="text-3xl font-semibold">Agency Operations</h1>
-          <p className="text-sm text-muted-foreground">All clients, audits, contacts and SEO data — one view.</p>
+          <h1 className="text-3xl font-semibold">Agency CRM</h1>
+          <p className="text-sm text-muted-foreground">Manage clients, leads, audits and projects.</p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={() => setEditClient({})} className="bg-gradient-to-br from-blue-500 to-violet-500">
+            <Users className="w-4 h-4 mr-1.5" /> New client
+          </Button>
         </div>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="mb-6 flex flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="clients">Clients ({overview.stats.users})</TabsTrigger>
-          <TabsTrigger value="audits">AI Audits ({overview.stats.audits})</TabsTrigger>
-          <TabsTrigger value="contacts">Leads ({overview.stats.contacts})</TabsTrigger>
-          <TabsTrigger value="searchatlas">SearchAtlas</TabsTrigger>
-          <TabsTrigger value="otto"><Cpu className="w-3 h-3 mr-1" />OTTO</TabsTrigger>
-          <TabsTrigger value="localseo">Local SEO</TabsTrigger>
-          <TabsTrigger value="content">Content Genius</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
+          <TabsTrigger value="clients">Clients ({clients.length})</TabsTrigger>
+          <TabsTrigger value="leads">Leads ({contacts.length})</TabsTrigger>
+          <TabsTrigger value="audits">Audits ({audits.length})</TabsTrigger>
+          <TabsTrigger value="projects">Projects ({allProjects.length})</TabsTrigger>
+          <TabsTrigger value="content"><PenTool className="w-3 h-3 mr-1" />Content Genius</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
           <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-3">
             {[
-              { l: 'Total clients', v: overview.stats.users, i: Users, c: 'text-blue-400' },
-              { l: 'AI audits', v: overview.stats.audits, i: Sparkles, c: 'text-violet-400' },
-              { l: 'Discovery leads', v: overview.stats.contacts, i: MessageSquare, c: 'text-emerald-400' },
-              { l: 'Live projects', v: overview.stats.projects, i: Hammer, c: 'text-amber-400' },
-              { l: 'Open tasks', v: overview.stats.tasks, i: Circle, c: 'text-rose-400' },
+              { l: 'Clients', v: clients.length, i: Users, c: 'text-blue-400' },
+              { l: 'AI audits', v: audits.length, i: Sparkles, c: 'text-violet-400' },
+              { l: 'Leads', v: contacts.length, i: MessageSquare, c: 'text-emerald-400' },
+              { l: 'Projects', v: allProjects.length, i: Hammer, c: 'text-amber-400' },
+              { l: 'New leads', v: contacts.filter(c => (c.leadStatus || 'new') === 'new').length + audits.filter(a => (a.leadStatus || 'new') === 'new').length, i: Bell, c: 'text-rose-400' },
             ].map(x => (
               <Card key={x.l} className="bg-secondary/30 border-border/60">
                 <CardContent className="p-5">
@@ -1544,291 +1629,364 @@ function AdminPortal({ user, go }) {
 
           <div className="grid lg:grid-cols-2 gap-4">
             <Card className="bg-secondary/30 border-border/60">
-              <CardHeader><CardTitle>Recent clients</CardTitle><CardDescription>Latest registrations</CardDescription></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div><CardTitle>Recent clients</CardTitle></div>
+                <Button size="sm" variant="ghost" onClick={() => setTab('clients')}>View all <ArrowRight className="w-3.5 h-3.5 ml-1" /></Button>
+              </CardHeader>
               <CardContent className="space-y-2">
-                {overview.recentUsers.slice(0, 5).map(u => (
+                {clients.slice(0, 5).map(u => (
                   <div key={u.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
-                    <div>
-                      <div className="text-sm font-medium">{u.name}</div>
-                      <div className="text-xs text-muted-foreground">{u.email}{u.company ? ` · ${u.company}` : ''}</div>
-                    </div>
+                    <div><div className="text-sm font-medium">{u.name}</div><div className="text-xs text-muted-foreground">{u.email}{u.company ? ` · ${u.company}` : ''}</div></div>
                     <Badge variant={u.role === 'admin' ? 'default' : 'outline'}>{u.role}</Badge>
                   </div>
                 ))}
+                {!clients.length && <div className="text-sm text-muted-foreground p-4 text-center">No clients yet.</div>}
               </CardContent>
             </Card>
+
             <Card className="bg-secondary/30 border-border/60">
-              <CardHeader><CardTitle>Recent AI audits</CardTitle><CardDescription>Lead magnet conversions</CardDescription></CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div><CardTitle>Recent leads</CardTitle></div>
+                <Button size="sm" variant="ghost" onClick={() => setTab('leads')}>View all <ArrowRight className="w-3.5 h-3.5 ml-1" /></Button>
+              </CardHeader>
               <CardContent className="space-y-2">
-                {overview.recentAudits.slice(0, 5).map(a => (
-                  <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{a.website}</div>
-                      <div className="text-xs text-muted-foreground truncate">{a.email}</div>
+                {contacts.slice(0, 5).map(c => (
+                  <div key={c.id} className="p-3 rounded-lg border border-border/60 bg-background/50 cursor-pointer hover:border-blue-500/40" onClick={() => setViewLead(c)}>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">{c.name} <span className="text-muted-foreground font-normal">· {c.email}</span></div>
+                      <Badge variant="outline" className={LEAD_STATUSES.find(s => s.value === (c.leadStatus || 'new'))?.color}>{(c.leadStatus || 'new')}</Badge>
                     </div>
-                    {typeof a.healthScore === 'number' && (
-                      <Badge variant="outline" className="border-blue-500/30 text-blue-300">{a.healthScore}/100</Badge>
-                    )}
+                    {c.message && <div className="text-xs text-muted-foreground mt-1 line-clamp-1">{c.message}</div>}
                   </div>
                 ))}
+                {!contacts.length && <div className="text-sm text-muted-foreground p-4 text-center">No leads yet.</div>}
               </CardContent>
             </Card>
           </div>
-
-          {saProjects[0] && (
-            <Card className="bg-gradient-to-br from-blue-500/10 to-violet-500/10 border-blue-500/30">
-              <CardHeader>
-                <div className="flex items-center gap-2">
-                  <Search className="w-4 h-4 text-blue-400" />
-                  <CardTitle>SearchAtlas — Live SEO Snapshot</CardTitle>
-                </div>
-                <CardDescription>{saProjects[0].hostname} · {saProjects[0].trackedKeywords} tracked keywords</CardDescription>
-              </CardHeader>
-              <CardContent className="grid md:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Avg. position</div>
-                  <div className="text-2xl font-semibold">{saProjects[0].currentAvgPosition ?? '—'}</div>
-                </div>
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Search visibility</div>
-                  <div className="text-2xl font-semibold">{saProjects[0].searchVisibility?.toFixed(1) ?? '—'}%</div>
-                </div>
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Position 1</div>
-                  <div className="text-2xl font-semibold text-emerald-400">{saProjects[0].serpsOverview?.serp_1 ?? 0}</div>
-                </div>
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Positions 2-10</div>
-                  <div className="text-2xl font-semibold">{(saProjects[0].serpsOverview?.serp_2_3 ?? 0) + (saProjects[0].serpsOverview?.serp_4_10 ?? 0)}</div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
         </TabsContent>
 
-        <TabsContent value="clients">
-          <Card className="bg-secondary/30 border-border/60">
-            <CardHeader>
-              <CardTitle>All clients</CardTitle>
-              <CardDescription>Link each client to a SearchAtlas rank-tracker project so their portal shows their live data.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {clients.map(c => (
-                <div key={c.id} className="p-3 rounded-lg border border-border/60 bg-background/50 space-y-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium flex items-center gap-2">{c.name}
-                        {c.searchAtlasHostname && <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-300 text-[10px]"><Globe className="w-2.5 h-2.5 mr-1" />{c.searchAtlasHostname}</Badge>}
-                      </div>
-                      <div className="text-xs text-muted-foreground">{c.email}{c.company ? ` · ${c.company}` : ''}</div>
+        <TabsContent value="clients" className="space-y-3">
+          {clients.map(c => (
+            <Card key={c.id} className="bg-secondary/30 border-border/60 hover:border-blue-500/40 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold">{c.name}</div>
+                      <Badge variant={c.role === 'admin' ? 'default' : 'outline'} className="text-[10px]">{c.role}</Badge>
+                      {c.status && c.status !== 'active' && <Badge variant="outline" className="text-[10px] border-amber-500/30 text-amber-300">{c.status}</Badge>}
+                      {c.searchAtlasHostname && <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-300"><Globe className="w-2.5 h-2.5 mr-1" />{c.searchAtlasHostname}</Badge>}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={c.role === 'admin' ? 'default' : 'outline'}>{c.role}</Badge>
-                      {c.role !== 'admin' && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'admin')}>Make admin</Button>}
-                      {c.role === 'admin' && user?.email !== c.email && <Button size="sm" variant="outline" onClick={() => promoteUser(c.id, 'client')}>Demote</Button>}
+                    <div className="text-xs text-muted-foreground mt-1">
+                      {c.email}
+                      {c.company && <span> · {c.company}</span>}
+                      {c.phone && <span> · {c.phone}</span>}
+                      {c.website && <span> · {c.website}</span>}
                     </div>
+                    {c.notes && <div className="text-xs text-muted-foreground mt-2 p-2 rounded-md bg-background/50 border border-border/60 italic">{c.notes}</div>}
                   </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="text-xs text-muted-foreground flex items-center gap-1.5"><Search className="w-3 h-3 text-blue-400" /> SearchAtlas project:</div>
-                    <select
-                      value={c.searchAtlasProjectId || ''}
-                      onChange={e => {
-                        const val = e.target.value
-                        const p = saProjects.find(x => String(x.id) === val)
-                        linkProject(c.id, val || null, p?.hostname || null)
-                      }}
-                      className="h-8 rounded-md border border-input bg-background px-2 text-xs flex-1 min-w-[200px]"
-                    >
-                      <option value="">— Not linked —</option>
-                      {saProjects.map(p => (
-                        <option key={p.id} value={p.id}>{p.hostname} (#{p.id})</option>
-                      ))}
-                    </select>
-                    {c.searchAtlasProjectId && (
-                      <Button size="sm" variant="ghost" onClick={() => linkProject(c.id, null, null)} className="text-rose-400 hover:text-rose-300 h-8">
-                        <X className="w-3 h-3 mr-1" />Unlink
+                  <div className="flex gap-1 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => setEditClient(c)}>Edit</Button>
+                    {c.searchAtlasProjectId && saProjects.find(p => p.id === c.searchAtlasProjectId)?.publicShareHash && (
+                      <Button size="sm" variant="ghost" onClick={() => {
+                        const p = saProjects.find(p => p.id === c.searchAtlasProjectId)
+                        navigator.clipboard.writeText(`${window.location.origin}/report/${p.publicShareHash}`)
+                        toast.success('Report link copied')
+                      }}><Shield className="w-3.5 h-3.5 mr-1" />Report link</Button>
+                    )}
+                    {c.email !== user?.email && (
+                      <Button size="sm" variant="ghost" onClick={() => deleteClient(c)} className="text-rose-400 hover:text-rose-300">
+                        <X className="w-3.5 h-3.5" />
                       </Button>
                     )}
-                    {c.searchAtlasProjectId && (() => {
-                      const p = saProjects.find(x => x.id === c.searchAtlasProjectId)
-                      if (!p?.publicShareHash) return null
-                      const url = typeof window !== 'undefined' ? `${window.location.origin}/report/${p.publicShareHash}` : ''
-                      return (
-                        <>
-                          <Button size="sm" variant="outline" className="h-8" onClick={() => { navigator.clipboard.writeText(url); toast.success('White-label report link copied') }}>
-                            <Shield className="w-3 h-3 mr-1" /> Copy report link
-                          </Button>
-                          <a href={`/report/${p.publicShareHash}`} target="_blank" rel="noopener noreferrer">
-                            <Button size="sm" variant="ghost" className="h-8"><ArrowUpRight className="w-3 h-3" /></Button>
-                          </a>
-                        </>
-                      )
-                    })()}
                   </div>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
+          {!clients.length && <div className="text-sm text-muted-foreground p-8 text-center">No clients yet. Click "New client" to add one.</div>}
         </TabsContent>
 
-        <TabsContent value="audits">
-          <Card className="bg-secondary/30 border-border/60">
-            <CardHeader><CardTitle>AI Marketing Audits</CardTitle><CardDescription>All submissions from the homepage lead magnet</CardDescription></CardHeader>
-            <CardContent className="space-y-2">
-              {audits.map(a => (
-                <div key={a.id} className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-background/50 hover:border-blue-500/40 cursor-pointer" onClick={() => setSelectedAudit(a)}>
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{a.website} <span className="text-muted-foreground font-normal">· {a.industry || '—'}</span></div>
-                    <div className="text-xs text-muted-foreground truncate">{a.name || '—'} &lt;{a.email}&gt;</div>
-                    {a.positioning && <div className="text-xs text-muted-foreground truncate mt-1 italic">{a.positioning}</div>}
+        <TabsContent value="leads" className="space-y-3">
+          {contacts.map(c => (
+            <Card key={c.id} className="bg-secondary/30 border-border/60 hover:border-blue-500/40 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setViewLead(c)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold">{c.name}</div>
+                      {c.company && <span className="text-xs text-muted-foreground">· {c.company}</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">{c.email} · {new Date(c.createdAt).toLocaleDateString()}</div>
+                    {c.message && <div className="text-sm mt-2 line-clamp-2">{c.message}</div>}
                   </div>
                   <div className="flex items-center gap-2">
-                    {typeof a.healthScore === 'number' && <Badge variant="outline" className="border-blue-500/30 text-blue-300">{a.healthScore}</Badge>}
-                    <Badge variant="outline">{a.status}</Badge>
+                    <StatusPill value={c.leadStatus || 'new'} onChange={v => updateContact(c.id, { leadStatus: v })} />
+                    <Button size="sm" variant="ghost" onClick={() => setViewLead(c)}>Open</Button>
+                    <Button size="sm" variant="ghost" onClick={() => deleteContact(c.id)} className="text-rose-400 hover:text-rose-300"><X className="w-3.5 h-3.5" /></Button>
                   </div>
                 </div>
-              ))}
-              {!audits.length && <div className="text-sm text-muted-foreground p-4 text-center">No audits yet.</div>}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          ))}
+          {!contacts.length && <div className="text-sm text-muted-foreground p-8 text-center">No leads yet.</div>}
         </TabsContent>
 
-        <TabsContent value="contacts">
+        <TabsContent value="audits" className="space-y-3">
+          {audits.map(a => (
+            <Card key={a.id} className="bg-secondary/30 border-border/60 hover:border-blue-500/40 transition-colors">
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setViewAudit(a)}>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="font-semibold">{a.website}</div>
+                      {typeof a.healthScore === 'number' && <Badge variant="outline" className="border-blue-500/30 text-blue-300">{a.healthScore}/100</Badge>}
+                      {a.industry && <span className="text-xs text-muted-foreground">· {a.industry}</span>}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">{a.name || '—'} &lt;{a.email}&gt; · {new Date(a.createdAt).toLocaleDateString()}</div>
+                    {a.positioning && <div className="text-xs text-muted-foreground italic mt-2 line-clamp-2">{a.positioning}</div>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <StatusPill value={a.leadStatus || 'new'} onChange={v => updateAudit(a.id, { leadStatus: v })} />
+                    <Button size="sm" variant="ghost" onClick={() => setViewAudit(a)}>Open</Button>
+                    <Button size="sm" variant="ghost" onClick={() => deleteAudit(a.id)} className="text-rose-400 hover:text-rose-300"><X className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+          {!audits.length && <div className="text-sm text-muted-foreground p-8 text-center">No audits yet.</div>}
+        </TabsContent>
+
+        <TabsContent value="projects" className="space-y-4">
           <Card className="bg-secondary/30 border-border/60">
-            <CardHeader><CardTitle>Discovery call requests</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              {contacts.map(c => (
-                <div key={c.id} className="p-4 rounded-lg border border-border/60 bg-background/50">
-                  <div className="flex items-center justify-between mb-1">
-                    <div className="text-sm font-medium">{c.name} {c.company ? <span className="text-muted-foreground font-normal">· {c.company}</span> : null}</div>
-                    <div className="text-xs text-muted-foreground">{new Date(c.createdAt).toLocaleDateString()}</div>
-                  </div>
-                  <div className="text-xs text-muted-foreground mb-2">{c.email}</div>
-                  <div className="text-sm">{c.message}</div>
-                </div>
-              ))}
-              {!contacts.length && <div className="text-sm text-muted-foreground p-4 text-center">No contact submissions yet.</div>}
+            <CardHeader><CardTitle>New project</CardTitle><CardDescription>Assign a project to any client</CardDescription></CardHeader>
+            <CardContent>
+              <form onSubmit={createProject} className="grid md:grid-cols-4 gap-2">
+                <select value={newProject.userId} onChange={e => setNewProject({ ...newProject, userId: e.target.value })}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option value="">— Select client —</option>
+                  {clients.filter(c => c.role === 'client').map(c => (
+                    <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                  ))}
+                </select>
+                <Input placeholder="Project name" value={newProject.name} onChange={e => setNewProject({ ...newProject, name: e.target.value })} className="md:col-span-2" />
+                <select value={newProject.phase} onChange={e => setNewProject({ ...newProject, phase: e.target.value })}
+                  className="h-10 rounded-md border border-input bg-background px-3 text-sm">
+                  <option>Plan</option><option>Build</option><option>Grow</option>
+                </select>
+                <Button type="submit" className="bg-gradient-to-br from-blue-500 to-violet-500 md:col-span-4">Add project</Button>
+              </form>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="searchatlas" className="space-y-4">
-          {saProjects.map(p => (
+          {allProjects.map(p => (
             <Card key={p.id} className="bg-secondary/30 border-border/60">
-              <CardHeader>
-                <div className="flex items-center justify-between">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2 gap-3 flex-wrap">
                   <div>
-                    <CardTitle className="flex items-center gap-2"><Globe className="w-4 h-4 text-blue-400" /> {p.hostname}</CardTitle>
-                    <CardDescription>{p.trackedKeywords} tracked keywords · Updated {new Date(p.updatedAt).toLocaleDateString()}</CardDescription>
-                  </div>
-                  {p.publicShareHash && (
-                    <a href={`https://keyword.searchatlas.com/keyword-projects/${p.publicShareHash}`} target="_blank" rel="noopener noreferrer">
-                      <Button size="sm" variant="outline">Open in SearchAtlas <ArrowUpRight className="w-3.5 h-3.5 ml-1" /></Button>
-                    </a>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="grid md:grid-cols-4 gap-3">
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Avg. position</div>
-                  <div className="text-2xl font-semibold">{p.currentAvgPosition ?? '—'}</div>
-                  <div className={`text-xs mt-1 ${p.positionDelta > 0 ? 'text-emerald-400' : p.positionDelta < 0 ? 'text-rose-400' : 'text-muted-foreground'}`}>Δ {p.positionDelta ?? 0}</div>
-                </div>
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Search visibility</div>
-                  <div className="text-2xl font-semibold">{p.searchVisibility?.toFixed(1) ?? '—'}%</div>
-                </div>
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Keywords ↑ / ↓</div>
-                  <div className="text-2xl font-semibold">
-                    <span className="text-emerald-400">{p.keywordsUpDown?.keywords_up ?? 0}</span>
-                    <span className="text-muted-foreground mx-1">/</span>
-                    <span className="text-rose-400">{p.keywordsUpDown?.keywords_down ?? 0}</span>
-                  </div>
-                </div>
-                <div className="p-3 rounded-lg bg-background/50 border border-border/60">
-                  <div className="text-xs text-muted-foreground">Estimated daily traffic</div>
-                  <div className="text-2xl font-semibold">{p.estimatedTraffic?.[0]?.traffic?.toFixed(0) ?? '—'}</div>
-                </div>
-                {p.serpsOverview && (
-                  <div className="md:col-span-4 p-3 rounded-lg bg-background/50 border border-border/60">
-                    <div className="text-xs text-muted-foreground mb-2">SERP distribution</div>
-                    <div className="flex gap-2 flex-wrap">
-                      {[
-                        { l: 'Top 1', v: p.serpsOverview.serp_1, c: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
-                        { l: '2-3', v: p.serpsOverview.serp_2_3, c: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-                        { l: '4-10', v: p.serpsOverview.serp_4_10, c: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
-                        { l: '11-20', v: p.serpsOverview.serp_11_20, c: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
-                        { l: '21-50', v: p.serpsOverview.serp_21_50, c: 'bg-orange-500/20 text-orange-300 border-orange-500/30' },
-                        { l: '51-100', v: p.serpsOverview.serp_51_100, c: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
-                      ].map(s => (
-                        <div key={s.l} className={`px-3 py-1.5 rounded-md border text-xs font-medium ${s.c}`}>{s.l}: {s.v}</div>
-                      ))}
+                    <div className="font-semibold flex items-center gap-2">
+                      {p.name}
+                      <Badge variant="outline" className="text-[10px]">{p.phase}</Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {p.client ? `${p.client.name}${p.client.company ? ' · ' + p.client.company : ''}` : 'Unassigned'} · {p.status}
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-          {!saProjects.length && <div className="text-sm text-muted-foreground p-4 text-center">No SearchAtlas projects.</div>}
-        </TabsContent>
-
-        <TabsContent value="localseo" className="space-y-4">
-          {saGbp.map(b => (
-            <Card key={b.id} className="bg-secondary/30 border-border/60">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2"><Globe className="w-4 h-4 text-emerald-400" /> {b.name}</CardTitle>
-                    <CardDescription>{b.address || 'No address set'}</CardDescription>
-                  </div>
                   <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 text-amber-400"><Star className="w-4 h-4 fill-amber-400" /><span className="text-sm font-semibold">{b.rating || '—'}</span></div>
-                    <div className="text-xs text-muted-foreground">({b.reviews} reviews)</div>
+                    <div className="text-sm font-semibold">{p.progress}%</div>
+                    <Button size="sm" variant="ghost" onClick={() => updateProject(p.id, { progress: Math.min(100, (p.progress || 0) + 10) })}>+10%</Button>
+                    <Button size="sm" variant="ghost" onClick={() => updateProject(p.id, { progress: Math.max(0, (p.progress || 0) - 10) })}>−10%</Button>
+                    <Button size="sm" variant="ghost" onClick={() => deleteProject(p.id)} className="text-rose-400 hover:text-rose-300"><X className="w-3.5 h-3.5" /></Button>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent>
-                {b.keywordBreakdown.length > 0 ? (
-                  <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground uppercase tracking-widest">Grid Rankings</div>
-                    {b.keywordBreakdown.map((k, i) => (
-                      <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-background/50 border border-border/60">
-                        <div className="text-sm font-medium">"{k.keyword}"</div>
-                        <div className="flex items-center gap-4 text-xs">
-                          <div><span className="text-muted-foreground">avg</span> <span className="font-semibold">{k.averagePosition?.toFixed(1)}</span></div>
-                          <div><span className="text-muted-foreground">best</span> <span className="font-semibold text-emerald-400">#{k.bestPosition}</span></div>
-                          <div><span className="text-muted-foreground">grid</span> <span className="font-semibold">{k.gridSize}×{k.gridSize}</span></div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : <div className="text-sm text-muted-foreground">No keyword grids configured.</div>}
+                <Progress value={p.progress} />
               </CardContent>
             </Card>
           ))}
-          {!saGbp.length && <div className="text-sm text-muted-foreground p-4 text-center">No Google Business locations connected.</div>}
+          {!allProjects.length && <div className="text-sm text-muted-foreground p-8 text-center">No projects yet.</div>}
         </TabsContent>
-        <TabsContent value="content">
-          <ContentGenius />
-        </TabsContent>
+
+        <TabsContent value="content"><ContentGenius /></TabsContent>
       </Tabs>
 
-      <Dialog open={!!selectedAudit} onOpenChange={(o) => !o && setSelectedAudit(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Audit for {selectedAudit?.website}</DialogTitle></DialogHeader>
-          {selectedAudit && (
-            <div className="space-y-3 text-sm">
-              <div><span className="text-muted-foreground">Contact:</span> {selectedAudit.name} &lt;{selectedAudit.email}&gt;</div>
-              <div><span className="text-muted-foreground">Industry:</span> {selectedAudit.industry || '—'}</div>
-              <div><span className="text-muted-foreground">Health score:</span> <span className="text-2xl font-semibold text-blue-400">{selectedAudit.healthScore ?? '—'}</span></div>
-              <div><span className="text-muted-foreground">Positioning:</span> {selectedAudit.positioning}</div>
-              <div><span className="text-muted-foreground">Submitted:</span> {new Date(selectedAudit.createdAt).toLocaleString()}</div>
+      {/* Client edit/create modal */}
+      <ClientEditorDialog
+        client={editClient}
+        onClose={() => setEditClient(null)}
+        onSave={saveClient}
+        saProjects={saProjects}
+      />
+
+      {/* Audit detail modal */}
+      <Dialog open={!!viewAudit} onOpenChange={(o) => !o && setViewAudit(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Audit: {viewAudit?.website}</DialogTitle></DialogHeader>
+          {viewAudit && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><span className="text-muted-foreground text-xs">Contact</span><div>{viewAudit.name} &lt;{viewAudit.email}&gt;</div></div>
+                <div><span className="text-muted-foreground text-xs">Industry</span><div>{viewAudit.industry || '—'}</div></div>
+                <div><span className="text-muted-foreground text-xs">Health score</span><div className="text-2xl font-semibold text-blue-400">{viewAudit.healthScore ?? '—'}</div></div>
+                <div><span className="text-muted-foreground text-xs">Submitted</span><div>{new Date(viewAudit.createdAt).toLocaleString()}</div></div>
+              </div>
+              {viewAudit.positioning && (
+                <div><span className="text-muted-foreground text-xs">Positioning</span><div className="italic mt-1">{viewAudit.positioning}</div></div>
+              )}
+              <Separator />
+              <div>
+                <Label className="text-xs">Lead status</Label>
+                <div className="mt-1"><StatusPill value={viewAudit.leadStatus || 'new'} onChange={v => updateAudit(viewAudit.id, { leadStatus: v })} /></div>
+              </div>
+              <div>
+                <Label className="text-xs">Admin notes</Label>
+                <Textarea rows={4} value={viewAudit.adminNotes || ''} onChange={e => setViewAudit({ ...viewAudit, adminNotes: e.target.value })}
+                  onBlur={e => updateAudit(viewAudit.id, { adminNotes: e.target.value })}
+                  placeholder="Add follow-up notes, next action, deal size…" />
+              </div>
+              <div className="flex justify-between pt-2">
+                <Button variant="ghost" size="sm" onClick={() => deleteAudit(viewAudit.id)} className="text-rose-400">Delete audit</Button>
+                <Button size="sm" onClick={() => setViewAudit(null)}>Done</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Lead detail modal */}
+      <Dialog open={!!viewLead} onOpenChange={(o) => !o && setViewLead(null)}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Lead: {viewLead?.name}</DialogTitle></DialogHeader>
+          {viewLead && (
+            <div className="space-y-4 text-sm">
+              <div className="grid grid-cols-2 gap-3">
+                <div><span className="text-muted-foreground text-xs">Email</span><div>{viewLead.email}</div></div>
+                <div><span className="text-muted-foreground text-xs">Company</span><div>{viewLead.company || '—'}</div></div>
+                <div className="col-span-2"><span className="text-muted-foreground text-xs">Submitted</span><div>{new Date(viewLead.createdAt).toLocaleString()}</div></div>
+              </div>
+              {viewLead.message && (
+                <div>
+                  <span className="text-muted-foreground text-xs">Message</span>
+                  <div className="mt-1 p-3 rounded-md border border-border/60 bg-background/50 whitespace-pre-wrap">{viewLead.message}</div>
+                </div>
+              )}
+              <Separator />
+              <div>
+                <Label className="text-xs">Lead status</Label>
+                <div className="mt-1"><StatusPill value={viewLead.leadStatus || 'new'} onChange={v => updateContact(viewLead.id, { leadStatus: v })} /></div>
+              </div>
+              <div>
+                <Label className="text-xs">Admin notes</Label>
+                <Textarea rows={4} value={viewLead.adminNotes || ''} onChange={e => setViewLead({ ...viewLead, adminNotes: e.target.value })}
+                  onBlur={e => updateContact(viewLead.id, { adminNotes: e.target.value })}
+                  placeholder="Add follow-up notes, next action…" />
+              </div>
+              <div className="flex justify-between pt-2">
+                <Button variant="ghost" size="sm" onClick={() => deleteContact(viewLead.id)} className="text-rose-400">Delete lead</Button>
+                <div className="flex gap-2">
+                  <a href={`mailto:${viewLead.email}`}><Button size="sm" variant="outline">Email <Mail className="w-3.5 h-3.5 ml-1.5" /></Button></a>
+                  <Button size="sm" onClick={() => setViewLead(null)}>Done</Button>
+                </div>
+              </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function ClientEditorDialog({ client, onClose, onSave, saProjects }) {
+  const [form, setForm] = useState({ name: '', email: '', company: '', phone: '', website: '', notes: '', role: 'client', status: 'active', password: '', searchAtlasProjectId: '', searchAtlasHostname: '' })
+  const [saving, setSaving] = useState(false)
+  const isNew = client && !client.id
+
+  useEffect(() => {
+    if (client) {
+      setForm({
+        name: client.name || '',
+        email: client.email || '',
+        company: client.company || '',
+        phone: client.phone || '',
+        website: client.website || '',
+        notes: client.notes || '',
+        role: client.role || 'client',
+        status: client.status || 'active',
+        password: '',
+        searchAtlasProjectId: client.searchAtlasProjectId || '',
+        searchAtlasHostname: client.searchAtlasHostname || '',
+      })
+    }
+  }, [client?.id, client === null])
+
+  const submit = async (e) => {
+    e.preventDefault()
+    setSaving(true)
+    const payload = { ...form, id: client?.id }
+    // Convert SA project id to number if present
+    if (payload.searchAtlasProjectId) {
+      const p = saProjects.find(x => String(x.id) === String(payload.searchAtlasProjectId))
+      payload.searchAtlasProjectId = Number(payload.searchAtlasProjectId)
+      payload.searchAtlasHostname = p?.hostname || payload.searchAtlasHostname
+    } else {
+      payload.searchAtlasProjectId = null
+      payload.searchAtlasHostname = null
+    }
+    if (!payload.password) delete payload.password
+    await onSave(payload)
+    setSaving(false)
+  }
+
+  return (
+    <Dialog open={!!client} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>{isNew ? 'New client' : `Edit ${client?.name}`}</DialogTitle></DialogHeader>
+        <form onSubmit={submit} className="grid gap-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label className="text-xs">Name *</Label><Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
+            <div><Label className="text-xs">Email *</Label><Input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} disabled={!isNew} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label className="text-xs">Company</Label><Input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} /></div>
+            <div><Label className="text-xs">Phone</Label><Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} /></div>
+          </div>
+          <div><Label className="text-xs">Website</Label><Input value={form.website} onChange={e => setForm({ ...form, website: e.target.value })} placeholder="example.com" /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Role</Label>
+              <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <option value="client">client</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">Status</Label>
+              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+                <option>active</option><option>onboarding</option><option>paused</option><option>churned</option>
+              </select>
+            </div>
+          </div>
+          {isNew && (
+            <div><Label className="text-xs">Password (leave blank to auto-generate)</Label><Input type="text" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Auto-generated if blank" /></div>
+          )}
+          <div>
+            <Label className="text-xs">SearchAtlas project (for reporting)</Label>
+            <select value={form.searchAtlasProjectId || ''} onChange={e => setForm({ ...form, searchAtlasProjectId: e.target.value })} className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm">
+              <option value="">— Not linked —</option>
+              {saProjects.map(p => <option key={p.id} value={p.id}>{p.hostname} (#{p.id})</option>)}
+            </select>
+          </div>
+          <div><Label className="text-xs">Notes</Label><Textarea rows={3} value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Anything the team should know…" /></div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="submit" disabled={saving} className="bg-gradient-to-br from-blue-500 to-violet-500">
+              {saving && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+              {isNew ? 'Create client' : 'Save changes'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

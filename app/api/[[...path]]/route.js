@@ -759,17 +759,138 @@ Produce the content brief JSON now.`
 
       if (path === '/admin/clients' && method === 'GET') {
         const list = await db.collection('users').find({}).sort({ createdAt: -1 }).toArray()
-        return json({ clients: list.map(u => ({ id: u.id, name: u.name, email: u.email, company: u.company, role: u.role, searchAtlasProjectId: u.searchAtlasProjectId || null, searchAtlasHostname: u.searchAtlasHostname || null, createdAt: u.createdAt })) })
+        return json({ clients: list.map(u => ({
+          id: u.id, name: u.name, email: u.email, company: u.company, role: u.role,
+          phone: u.phone || '', website: u.website || '', status: u.status || 'active',
+          notes: u.notes || '',
+          searchAtlasProjectId: u.searchAtlasProjectId || null,
+          searchAtlasHostname: u.searchAtlasHostname || null,
+          createdAt: u.createdAt,
+        })) })
+      }
+
+      if (path === '/admin/clients' && method === 'POST') {
+        const body = await request.json()
+        if (!body.name || !body.email) return json({ error: 'Name and email required' }, 400)
+        const email = body.email.toLowerCase()
+        const existing = await db.collection('users').findOne({ email })
+        if (existing) return json({ error: 'Email already exists' }, 409)
+        const rawPassword = body.password || Math.random().toString(36).slice(2, 12) + 'A1!'
+        const hash = await bcrypt.hash(rawPassword, 10)
+        const doc = {
+          id: uuidv4(),
+          name: body.name, email,
+          company: body.company || '', phone: body.phone || '', website: body.website || '',
+          notes: body.notes || '', status: body.status || 'active',
+          password: hash, role: body.role || 'client',
+          searchAtlasProjectId: body.searchAtlasProjectId || null,
+          searchAtlasHostname: body.searchAtlasHostname || null,
+          createdAt: new Date(),
+        }
+        await db.collection('users').insertOne(doc)
+        const returned = { ...doc }; delete returned.password; delete returned._id
+        return json({ client: returned, tempPassword: body.password ? undefined : rawPassword })
+      }
+
+      if (path.startsWith('/admin/clients/') && method === 'DELETE') {
+        const id = path.split('/')[3]
+        const target = await db.collection('users').findOne({ id })
+        if (!target) return json({ error: 'Not found' }, 404)
+        if (target.email === decoded.email) return json({ error: 'You cannot delete yourself' }, 400)
+        await db.collection('users').deleteOne({ id })
+        await db.collection('projects').deleteMany({ userId: id })
+        await db.collection('tasks').deleteMany({ userId: id })
+        await db.collection('contentBriefs').deleteMany({ userId: id })
+        return json({ ok: true })
       }
 
       if (path === '/admin/audits' && method === 'GET') {
-        const list = await db.collection('audits').find({}).sort({ createdAt: -1 }).limit(100).toArray()
-        return json({ audits: list.map(a => ({ id: a.id, name: a.name, email: a.email, website: a.website, industry: a.industry, status: a.status, healthScore: a.audit?.healthScore, positioning: a.audit?.positioning, createdAt: a.createdAt })) })
+        const list = await db.collection('audits').find({}).sort({ createdAt: -1 }).limit(200).toArray()
+        return json({ audits: list.map(a => ({
+          id: a.id, name: a.name, email: a.email, website: a.website, industry: a.industry,
+          status: a.status, healthScore: a.audit?.healthScore, positioning: a.audit?.positioning,
+          leadStatus: a.leadStatus || 'new', adminNotes: a.adminNotes || '',
+          createdAt: a.createdAt,
+        })) })
+      }
+
+      if (path.startsWith('/admin/audits/') && method === 'GET') {
+        const id = path.split('/')[3]
+        const a = await db.collection('audits').findOne({ id })
+        if (!a) return json({ error: 'Not found' }, 404)
+        const doc = { ...a }; delete doc._id
+        return json({ audit: doc })
+      }
+
+      if (path.startsWith('/admin/audits/') && method === 'PATCH') {
+        const id = path.split('/')[3]
+        const body = await request.json()
+        const $set = {}
+        if ('leadStatus' in body) $set.leadStatus = body.leadStatus
+        if ('adminNotes' in body) $set.adminNotes = body.adminNotes
+        await db.collection('audits').updateOne({ id }, { $set })
+        return json({ ok: true })
+      }
+
+      if (path.startsWith('/admin/audits/') && method === 'DELETE') {
+        const id = path.split('/')[3]
+        await db.collection('audits').deleteOne({ id })
+        return json({ ok: true })
       }
 
       if (path === '/admin/contacts' && method === 'GET') {
-        const list = await db.collection('contacts').find({}).sort({ createdAt: -1 }).limit(100).toArray()
-        return json({ contacts: list.map(c => ({ id: c.id, name: c.name, email: c.email, company: c.company, message: c.message, createdAt: c.createdAt })) })
+        const list = await db.collection('contacts').find({}).sort({ createdAt: -1 }).limit(200).toArray()
+        return json({ contacts: list.map(c => ({
+          id: c.id, name: c.name, email: c.email, company: c.company, message: c.message,
+          leadStatus: c.leadStatus || 'new', adminNotes: c.adminNotes || '',
+          createdAt: c.createdAt,
+        })) })
+      }
+
+      if (path.startsWith('/admin/contacts/') && method === 'PATCH') {
+        const id = path.split('/')[3]
+        const body = await request.json()
+        const $set = {}
+        if ('leadStatus' in body) $set.leadStatus = body.leadStatus
+        if ('adminNotes' in body) $set.adminNotes = body.adminNotes
+        await db.collection('contacts').updateOne({ id }, { $set })
+        return json({ ok: true })
+      }
+
+      if (path.startsWith('/admin/contacts/') && method === 'DELETE') {
+        const id = path.split('/')[3]
+        await db.collection('contacts').deleteOne({ id })
+        return json({ ok: true })
+      }
+
+      if (path === '/admin/all-projects' && method === 'GET') {
+        const list = await db.collection('projects').find({}).sort({ createdAt: -1 }).limit(500).toArray()
+        const users = await db.collection('users').find({}, { projection: { id: 1, name: 1, email: 1, company: 1 } }).toArray()
+        const uMap = Object.fromEntries(users.map(u => [u.id, u]))
+        return json({ projects: list.map(p => { const c = uMap[p.userId]; return { id: p.id, userId: p.userId, name: p.name, phase: p.phase, status: p.status, progress: p.progress, createdAt: p.createdAt, client: c ? { name: c.name, company: c.company } : null } }) })
+      }
+
+      if (path === '/admin/all-projects' && method === 'POST') {
+        const body = await request.json()
+        if (!body.name || !body.userId) return json({ error: 'name & userId required' }, 400)
+        const doc = { id: uuidv4(), userId: body.userId, name: body.name, phase: body.phase || 'Plan', status: body.status || 'In progress', progress: body.progress ?? 0, createdAt: new Date() }
+        await db.collection('projects').insertOne(doc)
+        return json({ project: doc })
+      }
+
+      if (path.startsWith('/admin/all-projects/') && method === 'PATCH') {
+        const id = path.split('/')[3]
+        const body = await request.json()
+        const $set = {}
+        for (const k of ['name', 'phase', 'status', 'progress']) if (k in body) $set[k] = body[k]
+        await db.collection('projects').updateOne({ id }, { $set })
+        return json({ ok: true })
+      }
+
+      if (path.startsWith('/admin/all-projects/') && method === 'DELETE') {
+        const id = path.split('/')[3]
+        await db.collection('projects').deleteOne({ id })
+        return json({ ok: true })
       }
 
       if (path === '/admin/settings' && method === 'GET') {
@@ -810,10 +931,10 @@ Produce the content brief JSON now.`
         const id = path.split('/')[3]
         const body = await request.json()
         const $set = {}
-        if (body.role) $set.role = body.role
-        if (body.company !== undefined) $set.company = body.company
-        if ('searchAtlasProjectId' in body) $set.searchAtlasProjectId = body.searchAtlasProjectId
-        if ('searchAtlasHostname' in body) $set.searchAtlasHostname = body.searchAtlasHostname
+        for (const k of ['name', 'company', 'phone', 'website', 'notes', 'status', 'role', 'searchAtlasProjectId', 'searchAtlasHostname']) {
+          if (k in body) $set[k] = body[k]
+        }
+        if (body.password) $set.password = await bcrypt.hash(body.password, 10)
         await db.collection('users').updateOne({ id }, { $set })
         return json({ ok: true })
       }
