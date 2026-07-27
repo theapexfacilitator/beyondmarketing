@@ -283,6 +283,7 @@ Produce the audit JSON now.`
 
       // Try to pull real SearchAtlas project data using this user's key (if admin) or env fallback
       let searchAtlas = null
+      let otto = null
       try {
         const userKey = user?.searchAtlasApiKey || SEARCHATLAS_KEY
         const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, userKey)
@@ -302,6 +303,39 @@ Produce the audit JSON now.`
             estimatedTraffic: p.estimated_traffic_report,
             publicShareHash: p.public_share_hash,
           }
+
+          // Try to also find OTTO data for this hostname (with & without www.)
+          try {
+            const oResp = await saFetch('https://sa.searchatlas.com/api/v2/otto-projects/', {}, userKey)
+            if (oResp.ok && oResp.body.results?.length) {
+              const host = (p.hostname || '').replace(/^www\./, '').toLowerCase()
+              const match = oResp.body.results.find(o => {
+                const oh = (o.hostname || '').replace(/^www\./, '').toLowerCase()
+                return oh === host || oh.includes(host) || host.includes(oh)
+              })
+              if (match) {
+                otto = {
+                  uuid: match.uuid,
+                  hostname: match.hostname,
+                  autopilotActive: match.autopilot_is_active,
+                  installStatus: match.pixel_state_display?.severity,
+                  installLabel: match.pixel_state_display?.label,
+                  timeSavedMinutes: match.time_saved_total,
+                  aiGradeOverall: match.ai_grade_overall,
+                  aiGradeBefore: match.ai_grade_overall_before,
+                  aiGradeDelta: match.ai_grade_overall_delta,
+                  holisticScores: match.holistic_scores,
+                  holisticScoresDelta: match.holistic_scores_delta,
+                  afterSummary: match.after_summary,
+                  pagesWithIssues: match.pages_with_issues,
+                  lastAnalysis: match.last_analysis,
+                  lastDeployedAt: match.last_deploy_event_timestamp,
+                  nextAnalysisAt: match.next_analysis_at,
+                  cms: match.detected_cms,
+                }
+              }
+            }
+          } catch (e) { /* OTTO optional */ }
         }
       } catch (e) { /* SearchAtlas optional */ }
 
@@ -339,6 +373,7 @@ Produce the audit JSON now.`
         tasks,
         notifications,
         searchAtlas,
+        otto,
       })
     }
 

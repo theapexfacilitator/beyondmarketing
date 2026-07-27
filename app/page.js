@@ -2014,6 +2014,89 @@ function Portal({ user, go }) {
         </TabsContent>
 
         <TabsContent value="seo" className="space-y-6">
+          {data.otto && (
+            <Card className="bg-gradient-to-br from-emerald-500/10 to-blue-500/10 border-emerald-500/30">
+              <CardHeader>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Cpu className="w-4 h-4 text-emerald-400" /> OTTO — AI SEO Autopilot
+                      {data.otto.autopilotActive && (
+                        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 border">
+                          <Circle className="w-2 h-2 mr-1.5 fill-emerald-400 text-emerald-400 animate-pulse" /> Active
+                        </Badge>
+                      )}
+                    </CardTitle>
+                    <CardDescription>{data.otto.hostname} · {data.otto.cms ? data.otto.cms.charAt(0).toUpperCase() + data.otto.cms.slice(1) + ' · ' : ''}Last analysis {data.otto.lastAnalysis ? new Date(data.otto.lastAnalysis).toLocaleDateString() : '—'}</CardDescription>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-4xl font-semibold text-gradient">{data.otto.aiGradeOverall}</div>
+                    <div className="text-xs text-muted-foreground">AI Grade</div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid md:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                    <div className="text-xs text-muted-foreground flex items-center gap-1"><Zap className="w-3 h-3 text-emerald-400" /> Time saved by OTTO</div>
+                    <div className="text-2xl font-semibold mt-1">
+                      {(() => {
+                        const m = data.otto.timeSavedMinutes || 0
+                        if (m < 60) return `${m}m`
+                        if (m < 1440) return `${Math.floor(m/60)}h ${m%60}m`
+                        return `${Math.floor(m/1440)}d ${Math.floor((m%1440)/60)}h`
+                      })()}
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                    <div className="text-xs text-muted-foreground">Auto-deployed fixes</div>
+                    <div className="text-2xl font-semibold mt-1 text-violet-400">{data.otto.afterSummary?.deployed_fixes ?? 0}</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                    <div className="text-xs text-muted-foreground">SEO Score</div>
+                    <div className="text-2xl font-semibold mt-1 text-blue-400">{data.otto.afterSummary?.seo_optimization_score ?? '—'}</div>
+                  </div>
+                  <div className="p-3 rounded-lg bg-background/50 border border-border/60">
+                    <div className="text-xs text-muted-foreground">Healthy pages</div>
+                    <div className="text-2xl font-semibold mt-1 text-emerald-400">{data.otto.afterSummary?.healthy_pages ?? '—'}<span className="text-sm text-muted-foreground font-normal">/{data.otto.afterSummary?.total_pages ?? '—'}</span></div>
+                  </div>
+                </div>
+
+                {data.otto.holisticScores && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                    {[
+                      { l: 'Technical', v: data.otto.holisticScores.technical_score, d: data.otto.holisticScoresDelta?.technical_score },
+                      { l: 'Content', v: data.otto.holisticScores.content_score, d: data.otto.holisticScoresDelta?.content_score },
+                      { l: 'Authority', v: data.otto.holisticScores.authority_score, d: data.otto.holisticScoresDelta?.authority_score },
+                      { l: 'UX Signal', v: data.otto.holisticScores.ux_signal_score, d: data.otto.holisticScoresDelta?.ux_signal_score },
+                    ].map(s => (
+                      <div key={s.l} className="p-3 rounded-lg border border-border/60 bg-background/40">
+                        <div className="text-xs text-muted-foreground">{s.l}</div>
+                        <div className="flex items-baseline gap-2">
+                          <div className="text-xl font-semibold">{s.v ?? '—'}</div>
+                          {s.d !== undefined && s.d !== 0 && (
+                            <div className={`text-xs ${s.d > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{s.d > 0 ? '+' : ''}{s.d}</div>
+                          )}
+                        </div>
+                        <div className="mt-1 h-1 rounded-full bg-secondary overflow-hidden">
+                          <div className="h-full bg-gradient-to-r from-emerald-500 to-blue-500" style={{ width: `${s.v || 0}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2 text-xs text-muted-foreground">
+                  <div>
+                    {data.otto.pagesWithIssues > 0 && <span>{data.otto.pagesWithIssues} pages with active issues · </span>}
+                    {data.otto.nextAnalysisAt && <span>Next automated crawl {new Date(data.otto.nextAnalysisAt).toLocaleDateString()}</span>}
+                  </div>
+                  <div className="italic">OTTO deploys fixes automatically. You don't need to lift a finger.</div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {data.searchAtlas && (
             <Card className="bg-gradient-to-br from-blue-500/10 to-violet-500/10 border-blue-500/30">
               <CardHeader>
