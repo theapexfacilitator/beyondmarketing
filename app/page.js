@@ -935,22 +935,21 @@ function Contact({ go }) {
 }
 
 // ---------- Auth ----------
-function Auth({ mode, setUser, go }) {
-  const [m, setM] = useState(mode || 'login')
-  const [form, setForm] = useState({ name: '', email: '', password: '', company: '' })
+function Auth({ setUser, go }) {
+  const [form, setForm] = useState({ email: '', password: '' })
   const [loading, setLoading] = useState(false)
   const submit = async (e) => {
     e.preventDefault()
     setLoading(true)
     try {
-      const r = await fetch(`/api/auth/${m === 'login' ? 'login' : 'register'}`, {
+      const r = await fetch('/api/auth/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
       })
       const data = await r.json()
       if (!r.ok) throw new Error(data.error || 'Failed')
       localStorage.setItem('bm_token', data.token)
       setUser(data.user)
-      toast.success(m === 'login' ? 'Welcome back!' : 'Account created ✨')
+      toast.success('Welcome back!')
       go('portal')
     } catch (err) { toast.error(err.message) } finally { setLoading(false) }
   }
@@ -958,20 +957,16 @@ function Auth({ mode, setUser, go }) {
     <section className="container mx-auto px-4 py-20 max-w-md">
       <Card className="bg-secondary/30 border-border/60">
         <CardHeader>
-          <CardTitle className="text-2xl">{m === 'login' ? 'Client Portal Sign in' : 'Create your account'}</CardTitle>
-          <CardDescription>{m === 'login' ? 'Access your growth dashboard.' : 'Get access to your dashboard & reports.'}</CardDescription>
+          <CardTitle className="text-2xl">Client Portal Sign in</CardTitle>
+          <CardDescription>Access your growth dashboard.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="grid gap-3">
-            {m === 'register' && (<>
-              <div><Label>Full name</Label><Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></div>
-              <div><Label>Company</Label><Input value={form.company} onChange={e => setForm({ ...form, company: e.target.value })} /></div>
-            </>)}
             <div><Label>Email</Label><Input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} /></div>
-            <div><Label>Password</Label><Input required type="password" minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
+            <div><Label>Password</Label><Input required type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} /></div>
             <Button disabled={loading} type="submit" className="bg-gradient-to-br from-blue-500 to-violet-500">
               {loading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              {m === 'login' ? 'Sign in' : 'Create account'}
+              Sign in
             </Button>
           </form>
           <div className="mt-4 text-sm text-center text-muted-foreground">
@@ -2472,9 +2467,8 @@ function App() {
       case 'learning': return <Learning go={go} />
       case 'pricing': return <Pricing go={go} />
       case 'contact': return <Contact go={go} />
-      case 'login': return <Auth mode="login" setUser={setUser} go={go} />
-      case 'register': return <Auth mode="login" setUser={setUser} go={go} />
-      case 'portal': return user ? (user.role === 'admin' ? <AdminPortal user={user} go={go} /> : <Portal user={user} go={go} />) : <Auth mode="login" setUser={setUser} go={go} />
+      case 'login': return <Auth setUser={setUser} go={go} />
+      case 'portal': return user ? (user.role === 'admin' ? <AdminPortal user={user} go={go} /> : <Portal user={user} go={go} />) : <Auth setUser={setUser} go={go} />
       default: return <Home go={go} />
     }
   })()
