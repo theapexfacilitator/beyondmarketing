@@ -296,79 +296,80 @@ Produce the audit JSON now.`
         { keyword: 'business growth strategy', position: 6, change: +3 },
       ]
 
-      // Try to pull real SearchAtlas project data - iterate ALL admin keys to find the linked project
+      // Try to pull real SearchAtlas project data — ONLY if this client has been explicitly linked
       let searchAtlas = null
       let otto = null
-      try {
-        // Collect all SA keys from all admins + env fallback
-        const adminUsers = await db.collection('users').find({ role: 'admin' }).toArray()
-        const allKeys = []
-        for (const a of adminUsers) {
-          if (Array.isArray(a.searchAtlasApiKeys)) {
-            for (const k of a.searchAtlasApiKeys) if (k?.key) allKeys.push(k.key)
-          } else if (a.searchAtlasApiKey) {
-            allKeys.push(a.searchAtlasApiKey)
+      const linkedId = user?.searchAtlasProjectId
+      if (linkedId) {
+        try {
+          // Collect all SA keys from all admins + env fallback (so we can find the project no matter which account owns it)
+          const adminUsers = await db.collection('users').find({ role: 'admin' }).toArray()
+          const allKeys = []
+          for (const a of adminUsers) {
+            if (Array.isArray(a.searchAtlasApiKeys)) {
+              for (const k of a.searchAtlasApiKeys) if (k?.key) allKeys.push(k.key)
+            } else if (a.searchAtlasApiKey) {
+              allKeys.push(a.searchAtlasApiKey)
+            }
           }
-        }
-        if (SEARCHATLAS_KEY) allKeys.push(SEARCHATLAS_KEY)
-        const uniqueKeys = [...new Set(allKeys)]
+          if (SEARCHATLAS_KEY) allKeys.push(SEARCHATLAS_KEY)
+          const uniqueKeys = [...new Set(allKeys)]
 
-        const linkedId = user?.searchAtlasProjectId
-        let foundProject = null
-        let foundKey = null
-        for (const k of uniqueKeys) {
-          const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, k)
-          if (sa.ok && sa.body.results?.length) {
-            const p = linkedId ? sa.body.results.find(x => x.id === linkedId) : sa.body.results[0]
-            if (p) { foundProject = p; foundKey = k; break }
+          let foundProject = null
+          let foundKey = null
+          for (const k of uniqueKeys) {
+            const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, k)
+            if (sa.ok && sa.body.results?.length) {
+              const p = sa.body.results.find(x => x.id === linkedId)
+              if (p) { foundProject = p; foundKey = k; break }
+            }
           }
-        }
 
-        if (foundProject) {
-          searchAtlas = {
-            hostname: foundProject.hostname, projectId: foundProject.id,
-            linked: !!(linkedId && linkedId === foundProject.id),
-            trackedKeywords: foundProject.tracked_keywords_count,
-            avgPosition: foundProject.position_legends?.current_avg_position,
-            positionDelta: foundProject.position_legends?.position_delta,
-            searchVisibility: foundProject.search_visibility_report?.[0]?.sv,
-            serpsOverview: foundProject.serps_overview?.[0] || null,
-            keywordsUpDown: foundProject.keywords_up_down_report,
-            estimatedTraffic: foundProject.estimated_traffic_report,
-            publicShareHash: foundProject.public_share_hash,
-          }
-          // OTTO match
-          try {
-            const oResp = await saFetch('https://sa.searchatlas.com/api/v2/otto-projects/', {}, foundKey)
-            if (oResp.ok && oResp.body.results?.length) {
-              const host = (foundProject.hostname || '').replace(/^www\./, '').toLowerCase()
-              const match = oResp.body.results.find(o => {
-                const oh = (o.hostname || '').replace(/^www\./, '').toLowerCase()
-                return oh === host || oh.includes(host) || host.includes(oh)
-              })
-              if (match) {
-                otto = {
-                  uuid: match.uuid, hostname: match.hostname,
-                  autopilotActive: match.autopilot_is_active,
-                  installStatus: match.pixel_state_display?.severity,
-                  installLabel: match.pixel_state_display?.label,
-                  timeSavedMinutes: match.time_saved_total,
-                  aiGradeOverall: match.ai_grade_overall,
-                  aiGradeBefore: match.ai_grade_overall_before,
-                  aiGradeDelta: match.ai_grade_overall_delta,
-                  holisticScores: match.holistic_scores,
-                  holisticScoresDelta: match.holistic_scores_delta,
-                  afterSummary: match.after_summary,
-                  pagesWithIssues: match.pages_with_issues,
-                  lastAnalysis: match.last_analysis,
-                  nextAnalysisAt: match.next_analysis_at,
-                  cms: match.detected_cms,
+          if (foundProject) {
+            searchAtlas = {
+              hostname: foundProject.hostname, projectId: foundProject.id, linked: true,
+              trackedKeywords: foundProject.tracked_keywords_count,
+              avgPosition: foundProject.position_legends?.current_avg_position,
+              positionDelta: foundProject.position_legends?.position_delta,
+              searchVisibility: foundProject.search_visibility_report?.[0]?.sv,
+              serpsOverview: foundProject.serps_overview?.[0] || null,
+              keywordsUpDown: foundProject.keywords_up_down_report,
+              estimatedTraffic: foundProject.estimated_traffic_report,
+              publicShareHash: foundProject.public_share_hash,
+            }
+            // OTTO match for the same hostname
+            try {
+              const oResp = await saFetch('https://sa.searchatlas.com/api/v2/otto-projects/', {}, foundKey)
+              if (oResp.ok && oResp.body.results?.length) {
+                const host = (foundProject.hostname || '').replace(/^www\./, '').toLowerCase()
+                const match = oResp.body.results.find(o => {
+                  const oh = (o.hostname || '').replace(/^www\./, '').toLowerCase()
+                  return oh === host || oh.includes(host) || host.includes(oh)
+                })
+                if (match) {
+                  otto = {
+                    uuid: match.uuid, hostname: match.hostname,
+                    autopilotActive: match.autopilot_is_active,
+                    installStatus: match.pixel_state_display?.severity,
+                    installLabel: match.pixel_state_display?.label,
+                    timeSavedMinutes: match.time_saved_total,
+                    aiGradeOverall: match.ai_grade_overall,
+                    aiGradeBefore: match.ai_grade_overall_before,
+                    aiGradeDelta: match.ai_grade_overall_delta,
+                    holisticScores: match.holistic_scores,
+                    holisticScoresDelta: match.holistic_scores_delta,
+                    afterSummary: match.after_summary,
+                    pagesWithIssues: match.pages_with_issues,
+                    lastAnalysis: match.last_analysis,
+                    nextAnalysisAt: match.next_analysis_at,
+                    cms: match.detected_cms,
+                  }
                 }
               }
-            }
-          } catch (e) { /* OTTO optional */ }
-        }
-      } catch (e) { /* SearchAtlas optional */ }
+            } catch (e) { /* OTTO optional */ }
+          }
+        } catch (e) { /* SearchAtlas optional */ }
+      }
 
       const projects = realProjects.length ? realProjects.map(p => ({ id: p.id, name: p.name, progress: p.progress, phase: p.phase, status: p.status })) : [
         { name: 'SEO & Local Authority', progress: 68, phase: 'Grow', status: 'On track' },
