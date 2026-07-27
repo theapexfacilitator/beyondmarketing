@@ -18,7 +18,8 @@ import {
   Compass, Hammer, TrendingUp, CheckCircle2, ChevronRight, Menu, X, Play, BookOpen,
   Search, PenTool, Workflow, BarChart3, Bell, LogOut, ArrowUpRight, ArrowDownRight,
   Circle, Globe, Mail, MessageSquare, PieChart as PieIcon, Loader2, Star,
-  FileText, Calendar, Clock, Tag, ExternalLink, Edit3, Trash2, Plus, Save, Eye, EyeOff, Link2, ArrowLeft
+  FileText, Calendar, Clock, Tag, ExternalLink, Edit3, Trash2, Plus, Save, Eye, EyeOff, Link2, ArrowLeft,
+  Quote, AlertCircle, XCircle, User
 } from 'lucide-react'
 import {
   LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -737,33 +738,313 @@ function PageHeader({ eyebrow, title, desc }) {
 }
 
 function Approach({ go }) {
+  const problems = [
+    { title: 'Fragmented tools', old: 'Website, CRM, ads, email, analytics — all disconnected and duplicated.', neu: 'One connected ecosystem. Every tool talks to the next.' },
+    { title: 'Data you don\'t own', old: 'Agencies host your ad accounts, domains and pixels. You can\'t leave.', neu: 'Everything in your name. Domains, CRM, ad accounts, data — yours.' },
+    { title: 'Guesswork reporting', old: 'PDFs full of vanity metrics. No line-of-sight to revenue.', neu: 'Live dashboards tied to KPIs that actually move the business.' },
+    { title: 'Endless retainers', old: 'You pay for hours. Not outcomes. Nothing compounds.', neu: 'Systems that compound. Every month builds on the last.' },
+  ]
+
+  const pillars = [
+    {
+      icon: Compass,
+      title: 'Strategy First',
+      lead: 'We understand your business before we sell you services.',
+      body: 'Every engagement starts with a deep-dive Marketing Audit and Growth Workshop. We map your customer journey, audit your current stack, and identify the highest-leverage opportunities before writing a line of code or launching a campaign. You get a written strategy — not a sales pitch.',
+      chips: ['Marketing Audit', 'Customer Journey Map', 'Growth Roadmap'],
+    },
+    {
+      icon: Layers,
+      title: 'Systems Thinking',
+      lead: 'A connected ecosystem, not disconnected tactics.',
+      body: 'Your CRM talks to your email platform. Your website feeds your analytics. Your ads route into your pipeline. We build the wiring so you see the whole customer journey — from first click to closed deal — inside one dashboard. Every recommendation strengthens the system.',
+      chips: ['Connected Stack', 'Automation', 'Unified Reporting'],
+    },
+    {
+      icon: Shield,
+      title: 'You Own Everything',
+      lead: 'No lock-in. Ever.',
+      body: 'Your domains, data, CRM, ad accounts, tracking, and workflows are all in your name from day one. If you ever leave, you take everything with you — fully documented, fully accessible. We win by delivering results, not by holding your business hostage.',
+      chips: ['Full Data Ownership', 'Documented Systems', 'Zero Vendor Lock-in'],
+    },
+  ]
+
+  const values = [
+    { t: 'Simplicity', d: 'Fewer tools. Clearer workflows.' },
+    { t: 'Transparency', d: 'Every hour, every metric, in the open.' },
+    { t: 'Data Ownership', d: 'Everything in your name. Always.' },
+    { t: 'Innovation', d: 'AI where it matters, humans everywhere else.' },
+    { t: 'Partnership', d: 'Your growth, our scoreboard.' },
+    { t: 'Sustainable Growth', d: 'Compounding systems, not sugar-highs.' },
+  ]
+
+  const stats = [
+    { v: '150%', l: 'Avg. organic traffic lift in 6 months' },
+    { v: '3.2x', l: 'ROI on connected systems clients' },
+    { v: '<48h', l: 'From audit to actionable roadmap' },
+    { v: '100%', l: 'Client data ownership guaranteed' },
+  ]
+
   return (
     <div>
-      <PageHeader eyebrow="Our Approach" title="A growth partner, not another vendor." desc="We combine strategy, technology and reporting into one continuous system built around your business." />
-      <section className="container mx-auto px-4 pb-16 grid md:grid-cols-3 gap-4">
-        {[
-          { i: Compass, t: 'Strategy first', d: 'We start by understanding your business, not selling services.' },
-          { i: Layers, t: 'Systems thinking', d: 'Every recommendation strengthens your connected ecosystem.' },
-          { i: Shield, t: 'You own everything', d: 'Domains, data, CRM, accounts — all in your name, always.' },
-        ].map(f => (
-          <Card key={f.t} className="bg-secondary/30"><CardHeader>
-            <f.i className="w-6 h-6 text-blue-400 mb-2" />
-            <CardTitle>{f.t}</CardTitle><CardDescription>{f.d}</CardDescription>
-          </CardHeader></Card>
-        ))}
+      {/* HERO */}
+      <PageHeader
+        eyebrow="Our Approach"
+        title="A growth partner, not another vendor."
+        desc="We replace fragmented tools and guesswork with a single, connected Business Growth Operating System. You get a clear roadmap, automated execution, and full ownership of your data — without the complexity."
+      />
+
+      {/* PROBLEM: Old Way vs Beyond Way */}
+      <section className="container mx-auto px-4 pb-16">
+        <div className="max-w-2xl mb-10">
+          <div className="text-sm text-blue-400 font-medium mb-2">The Problem</div>
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight">Marketing feels expensive, chaotic and unclear.</h2>
+          <p className="mt-3 text-muted-foreground">Most businesses don&apos;t have a marketing problem — they have a <span className="text-foreground font-medium">disconnection problem</span>. Sound familiar?</p>
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-4">
+          {/* Old Way */}
+          <Card className="bg-rose-500/5 border-rose-500/20">
+            <CardHeader>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/20 grid place-items-center">
+                  <XCircle className="w-4 h-4 text-rose-300" />
+                </div>
+                <Badge variant="outline" className="border-rose-500/30 bg-rose-500/10 text-rose-300 text-[10px]">The Old Way</Badge>
+              </div>
+              <CardTitle className="text-xl">Silos, guesswork & agency lock-in</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {problems.map(p => (
+                <div key={p.title} className="flex items-start gap-2">
+                  <XCircle className="w-4 h-4 text-rose-400/70 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-foreground/90">{p.title}</div>
+                    <div className="text-xs text-muted-foreground">{p.old}</div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* Beyond Way */}
+          <Card className="bg-gradient-to-br from-blue-500/10 to-violet-500/10 border-blue-500/30 relative overflow-hidden">
+            <div className="absolute -top-16 -right-16 w-40 h-40 bg-blue-500/20 rounded-full blur-3xl" />
+            <CardHeader className="relative">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-500 grid place-items-center">
+                  <Sparkles className="w-4 h-4 text-white" />
+                </div>
+                <Badge className="bg-gradient-to-br from-blue-500 to-violet-500 text-white border-0 text-[10px]">The Beyond Way</Badge>
+              </div>
+              <CardTitle className="text-xl">One connected system you own</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 relative">
+              {problems.map(p => (
+                <div key={p.title} className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-foreground">{p.title}</div>
+                    <div className="text-xs text-muted-foreground">{p.neu}</div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
       </section>
-      <section className="container mx-auto px-4 py-16 grid lg:grid-cols-2 gap-10 items-center">
-        <img src={TEAM_IMG} className="rounded-2xl border border-border/60" alt="Team" />
-        <div>
-          <h2 className="text-3xl font-semibold">Core values</h2>
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            {['Simplicity','Transparency','Data Ownership','Innovation','Partnership','Sustainable Growth'].map(v => (
-              <div key={v} className="p-3 rounded-lg border border-border/60 bg-secondary/30 text-sm">{v}</div>
+
+      {/* METHODOLOGY */}
+      <section className="container mx-auto px-4 pb-16">
+        <div className="max-w-2xl mb-10">
+          <div className="text-sm text-blue-400 font-medium mb-2">Our Methodology</div>
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight">Three principles. One outcome.</h2>
+          <p className="mt-3 text-muted-foreground">Every engagement — from a $500 local package to a full Partnership retainer — is delivered through the same three principles.</p>
+        </div>
+
+        <div className="space-y-4">
+          {pillars.map((p, i) => (
+            <Card key={p.title} className="bg-secondary/30 border-border/60 overflow-hidden">
+              <div className="grid md:grid-cols-[80px,1fr] gap-0">
+                <div className={`hidden md:flex items-start justify-center py-8 bg-gradient-to-br ${i === 0 ? 'from-blue-500/20 to-cyan-500/10' : i === 1 ? 'from-violet-500/20 to-fuchsia-500/10' : 'from-emerald-500/20 to-teal-500/10'}`}>
+                  <div className="w-12 h-12 rounded-xl bg-background/60 backdrop-blur border border-border/60 grid place-items-center">
+                    <p.icon className="w-5 h-5 text-blue-300" />
+                  </div>
+                </div>
+                <div className="p-6 md:p-8">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-muted-foreground font-mono">0{i + 1}</span>
+                    <span className="text-xs text-muted-foreground">·</span>
+                    <span className="text-xs text-blue-400 font-medium">{p.lead}</span>
+                  </div>
+                  <h3 className="text-2xl font-semibold tracking-tight">{p.title}</h3>
+                  <p className="mt-3 text-muted-foreground leading-relaxed">{p.body}</p>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {p.chips.map(c => (
+                      <span key={c} className="text-[11px] px-2.5 py-1 rounded-full bg-secondary border border-border/40 text-muted-foreground">{c}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      {/* CORE VALUES */}
+      <section className="container mx-auto px-4 pb-16">
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <div className="text-sm text-blue-400 font-medium mb-2">Core Values</div>
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight">What we believe.</h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {values.map(v => (
+            <div key={v.t} className="p-5 rounded-xl border border-border/60 bg-secondary/30 hover:border-blue-500/40 transition">
+              <div className="text-sm font-semibold">{v.t}</div>
+              <div className="text-xs text-muted-foreground mt-1">{v.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* SOCIAL PROOF */}
+      <section className="container mx-auto px-4 pb-16">
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <div className="text-sm text-blue-400 font-medium mb-2">Proof</div>
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight">Results, not promises.</h2>
+        </div>
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+          {stats.map(s => (
+            <div key={s.l} className="p-5 rounded-xl border border-border/60 bg-secondary/30 text-center">
+              <div className="text-3xl md:text-4xl font-semibold bg-gradient-to-br from-blue-400 to-violet-400 bg-clip-text text-transparent">{s.v}</div>
+              <div className="text-[11px] text-muted-foreground mt-1 leading-tight">{s.l}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid lg:grid-cols-[1.2fr,1fr] gap-4">
+          {/* Testimonial */}
+          <Card className="bg-gradient-to-br from-blue-500/10 via-secondary/30 to-violet-500/10 border-blue-500/30">
+            <CardContent className="p-8 md:p-10">
+              <Quote className="w-8 h-8 text-blue-400/60 mb-4" />
+              <blockquote className="text-xl md:text-2xl leading-relaxed font-medium tracking-tight">
+                &ldquo;Before Beyond, we were stitching together five tools with duct tape. Now our CRM, site, ads and reporting all speak to each other — and our organic traffic is up <span className="text-blue-300">150%</span> in six months. It&apos;s the first time marketing has actually felt <em className="not-italic text-blue-300">simple</em>.&rdquo;
+              </blockquote>
+              <div className="mt-6 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 grid place-items-center text-white font-semibold text-sm">SM</div>
+                <div>
+                  <div className="text-sm font-semibold">Sarah M.</div>
+                  <div className="text-xs text-muted-foreground">Owner · Multi-location service business</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Case study snippet */}
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader>
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/5 text-emerald-300 text-[10px]">Case Study</Badge>
+                <span className="text-[10px] text-muted-foreground">Local services · 6 months</span>
+              </div>
+              <CardTitle className="text-xl">From 3 leads/month to 32.</CardTitle>
+              <CardDescription>Local SEO + connected CRM + automated follow-up.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="p-3 rounded-lg bg-background/40 border border-border/40">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Organic traffic</div>
+                  <div className="text-lg font-semibold text-emerald-300">+150%</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/40 border border-border/40">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Qualified leads</div>
+                  <div className="text-lg font-semibold text-emerald-300">10.6×</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/40 border border-border/40">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Cost per lead</div>
+                  <div className="text-lg font-semibold text-emerald-300">−62%</div>
+                </div>
+                <div className="p-3 rounded-lg bg-background/40 border border-border/40">
+                  <div className="text-[10px] text-muted-foreground uppercase tracking-wider">Time to first ROI</div>
+                  <div className="text-lg font-semibold text-emerald-300">90 days</div>
+                </div>
+              </div>
+              <button onClick={() => go('contact')} className="text-xs text-blue-400 hover:text-blue-300 inline-flex items-center gap-1">
+                Request the full case study <ArrowRight className="w-3 h-3" />
+              </button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Client logo strip (placeholders — swap with real logos once available) */}
+        <div className="mt-10 pt-8 border-t border-border/60">
+          <div className="text-center text-xs text-muted-foreground uppercase tracking-widest mb-6">Trusted by growing businesses across North America</div>
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-3 opacity-70">
+            {['NorthPeak', 'ApexCo', 'BrightRow', 'Kindred', 'Everline', 'MeridianLab'].map(n => (
+              <div key={n} className="h-14 rounded-lg border border-border/40 bg-secondary/20 grid place-items-center text-sm font-semibold tracking-tight text-muted-foreground/80">
+                {n}
+              </div>
             ))}
           </div>
         </div>
       </section>
-      <FinalCTA go={go} />
+
+      {/* FOUNDER / TEAM */}
+      <section className="container mx-auto px-4 pb-16">
+        <Card className="bg-secondary/30 border-border/60 overflow-hidden">
+          <div className="grid md:grid-cols-[280px,1fr] gap-0">
+            <div className="relative bg-gradient-to-br from-blue-500/20 via-violet-500/10 to-fuchsia-500/10 min-h-[280px] grid place-items-center p-8">
+              {/* Founder photo placeholder — replace src with real headshot */}
+              <div className="w-40 h-40 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-500 grid place-items-center shadow-2xl shadow-blue-500/30">
+                <img src={TEAM_IMG} alt="Founder" className="w-full h-full object-cover rounded-2xl" />
+              </div>
+            </div>
+            <div className="p-8 md:p-10">
+              <div className="text-sm text-blue-400 font-medium mb-2">Meet the Founder</div>
+              <h2 className="text-3xl font-semibold tracking-tight">Built by an operator, not an ad-buyer.</h2>
+              <p className="mt-4 text-muted-foreground leading-relaxed">
+                After a decade running growth for local service businesses and SaaS startups, I kept seeing the same broken pattern: expensive tools, disconnected data, and agencies that owned everything but the outcomes. So I built <span className="text-foreground font-medium">Beyond Marketing</span> — an agency that operates like a growth department, delivers like a systems integrator, and hands the keys back to the business owner.
+              </p>
+              <p className="mt-3 text-muted-foreground leading-relaxed">
+                We&apos;re small on purpose. Every client works directly with senior operators. No account-manager theatre, no offshore hand-offs. Just clear thinking, clean systems, and compounding growth.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Certified SearchAtlas partner</div>
+                <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />HubSpot solutions partner</div>
+                <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Google Business Profile expert</div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </section>
+
+      {/* FINAL CTA */}
+      <section className="container mx-auto px-4 pb-24">
+        <Card className="bg-gradient-to-br from-blue-500/15 via-violet-500/10 to-fuchsia-500/10 border-blue-500/30 overflow-hidden relative">
+          <div className="absolute -top-20 -right-20 w-72 h-72 bg-blue-500/20 rounded-full blur-3xl" />
+          <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-violet-500/20 rounded-full blur-3xl" />
+          <CardContent className="p-10 md:p-16 text-center relative">
+            <Badge className="bg-white/10 border-white/20 text-white mb-4">Free · No commitment</Badge>
+            <h2 className="text-3xl md:text-5xl font-semibold tracking-tight leading-tight">Ready to simplify your growth<br />and finally own your data?</h2>
+            <p className="mt-5 text-lg text-muted-foreground max-w-2xl mx-auto">Book a free <span className="text-foreground font-medium">Growth Audit</span> and we&apos;ll show you exactly where your biggest opportunities are hiding — usually inside your existing stack.</p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Button size="lg" onClick={() => go('contact')} className="bg-gradient-to-br from-blue-500 to-violet-500 hover:opacity-90">
+                Book my free Growth Audit <ArrowRight className="w-4 h-4 ml-2" />
+              </Button>
+              <Button size="lg" variant="outline" onClick={() => go('pricing')}>
+                See our packages
+              </Button>
+            </div>
+            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />45-min deep dive</div>
+              <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Written roadmap delivered within 48h</div>
+              <div className="flex items-center gap-1.5"><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />Yours to keep — even if we don&apos;t work together</div>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   )
 }
