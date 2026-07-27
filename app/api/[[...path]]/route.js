@@ -134,24 +134,7 @@ async function handler(request, ctx) {
 
     // ===== AUTH =====
     if (path === '/auth/register' && method === 'POST') {
-      const { name, email, password, company } = await request.json()
-      if (!email || !password || !name) return json({ error: 'Missing fields' }, 400)
-      const db = await getDb()
-      const existing = await db.collection('users').findOne({ email: email.toLowerCase() })
-      if (existing) return json({ error: 'Email already registered' }, 409)
-      const hash = await bcrypt.hash(password, 10)
-      const user = {
-        id: uuidv4(),
-        name,
-        email: email.toLowerCase(),
-        company: company || '',
-        password: hash,
-        role: 'client',
-        createdAt: new Date(),
-      }
-      await db.collection('users').insertOne(user)
-      const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '30d' })
-      return json({ token, user: { id: user.id, name: user.name, email: user.email, company: user.company, role: user.role } })
+      return json({ error: 'Public registration is disabled. Contact Beyond Marketing to be added.' }, 403)
     }
 
     if (path === '/auth/login' && method === 'POST') {

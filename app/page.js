@@ -152,6 +152,25 @@ function Nav({ go, route, user, onLogout }) {
               <button key={n.id} onClick={() => { go(n.id); setOpen(false) }}
                 className="text-left px-3 py-2 rounded-md text-sm hover:bg-secondary">{n.label}</button>
             ))}
+            <div className="border-t border-border/50 mt-2 pt-2">
+              {user ? (
+                <>
+                  <button onClick={() => { go('portal'); setOpen(false) }}
+                    className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-secondary flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-400" /> Client Portal
+                  </button>
+                  <button onClick={() => { onLogout(); setOpen(false) }}
+                    className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-secondary flex items-center gap-2">
+                    <LogOut className="w-4 h-4" /> Sign out
+                  </button>
+                </>
+              ) : (
+                <button onClick={() => { go('login'); setOpen(false) }}
+                  className="w-full text-left px-3 py-2 rounded-md text-sm hover:bg-secondary flex items-center gap-2 font-medium">
+                  <LogOut className="w-4 h-4 rotate-180" /> Sign in to Client Portal
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -956,11 +975,7 @@ function Auth({ mode, setUser, go }) {
             </Button>
           </form>
           <div className="mt-4 text-sm text-center text-muted-foreground">
-            {m === 'login' ? (
-              <>New here? <button className="text-blue-400 hover:underline" onClick={() => setM('register')}>Create an account</button></>
-            ) : (
-              <>Have an account? <button className="text-blue-400 hover:underline" onClick={() => setM('login')}>Sign in</button></>
-            )}
+            Client accounts are created by your Beyond Marketing team. Reach out if you need access.
           </div>
         </CardContent>
       </Card>
@@ -2458,7 +2473,7 @@ function App() {
       case 'pricing': return <Pricing go={go} />
       case 'contact': return <Contact go={go} />
       case 'login': return <Auth mode="login" setUser={setUser} go={go} />
-      case 'register': return <Auth mode="register" setUser={setUser} go={go} />
+      case 'register': return <Auth mode="login" setUser={setUser} go={go} />
       case 'portal': return user ? (user.role === 'admin' ? <AdminPortal user={user} go={go} /> : <Portal user={user} go={go} />) : <Auth mode="login" setUser={setUser} go={go} />
       default: return <Home go={go} />
     }
