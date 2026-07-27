@@ -1155,98 +1155,104 @@ function OttoTab() {
   )
 }
 
-function SettingsTab({ user, refreshData }) {
+function SettingsTab({ user }) {
   const [me, setMe] = useState(null)
-  const [saKey, setSaKey] = useState('')
+  const [newKey, setNewKey] = useState({ label: '', key: '' })
+  const [adding, setAdding] = useState(false)
   const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState(null)
-  const [saving, setSaving] = useState(false)
   const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
   const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
 
-  useEffect(() => {
-    fetch('/api/admin/settings', { headers: h }).then(r => r.json()).then(d => { setMe(d); })
-  }, [])
+  const reload = async () => {
+    const r = await fetch('/api/admin/settings', { headers: h })
+    if (r.ok) setMe(await r.json())
+  }
+  useEffect(() => { reload() }, [])
 
-  const testKey = async () => {
-    if (!saKey.trim()) { toast.error('Enter a key first'); return }
-    setTesting(true); setTestResult(null)
-    const r = await fetch('/api/admin/settings/test-sa-key', { method: 'POST', headers: h, body: JSON.stringify({ searchAtlasApiKey: saKey.trim() }) })
+  const addKey = async (e) => {
+    e.preventDefault()
+    if (!newKey.label || !newKey.key) return toast.error('Label and key required')
+    setAdding(true)
+    const r = await fetch('/api/admin/settings/keys', { method: 'POST', headers: h, body: JSON.stringify(newKey) })
     const d = await r.json()
-    setTestResult(d)
-    setTesting(false)
-    if (d.ok) toast.success(`Key valid — ${d.projectCount} projects found`)
-    else toast.error('Invalid key')
+    setAdding(false)
+    if (r.ok) {
+      toast.success(`Added "${d.added.label}" — ${d.projectCount} projects visible`)
+      setNewKey({ label: '', key: '' })
+      reload()
+    } else toast.error(d.error || 'Failed')
   }
 
-  const save = async () => {
-    setSaving(true)
-    const r = await fetch('/api/admin/settings', { method: 'PATCH', headers: h, body: JSON.stringify({ searchAtlasApiKey: saKey.trim() || null }) })
-    setSaving(false)
-    if (r.ok) {
-      toast.success('SearchAtlas key updated — refresh to see your projects')
-      setSaKey('')
-      const updated = await fetch('/api/admin/settings', { headers: h }).then(r => r.json())
-      setMe(updated)
-      refreshData && refreshData()
-    } else toast.error('Failed to save')
+  const removeKey = async (id) => {
+    if (!confirm('Remove this SearchAtlas account?')) return
+    await fetch(`/api/admin/settings/keys/${id}`, { method: 'DELETE', headers: h })
+    toast.success('Account removed')
+    reload()
   }
 
-  const clear = async () => {
-    if (!confirm('Remove your SearchAtlas API key? Your admin views will fall back to the shared/default key.')) return
-    const r = await fetch('/api/admin/settings', { method: 'PATCH', headers: h, body: JSON.stringify({ searchAtlasApiKey: null }) })
-    if (r.ok) {
-      toast.success('Key removed')
-      const updated = await fetch('/api/admin/settings', { headers: h }).then(r => r.json())
-      setMe(updated)
-      refreshData && refreshData()
-    }
+  const renameKey = async (id, newLabel) => {
+    await fetch(`/api/admin/settings/keys/${id}`, { method: 'PATCH', headers: h, body: JSON.stringify({ label: newLabel }) })
+    reload()
   }
+
+  if (!me) return <div className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
 
   return (
-    <div className="grid lg:grid-cols-2 gap-4">
-      <Card className="bg-secondary/30 border-border/60">
+    <div className="grid lg:grid-cols-3 gap-4">
+      <Card className="bg-secondary/30 border-border/60 lg:col-span-2">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Search className="w-4 h-4 text-blue-400" /> SearchAtlas API Key</CardTitle>
-          <CardDescription>Connect this admin account to a specific SearchAtlas account. All SearchAtlas, OTTO, Local SEO and dashboard data will use YOUR key.</CardDescription>
+          <CardTitle className="flex items-center gap-2"><Search className="w-4 h-4 text-blue-400" /> SearchAtlas Accounts</CardTitle>
+          <CardDescription>Connect multiple SearchAtlas accounts. Data from ALL connected accounts will appear in your dashboards, OTTO snapshots, and white-label reports.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div>
-            <Label className="text-xs">Current key</Label>
-            <div className="p-3 rounded-lg border border-border/60 bg-background/50 font-mono text-xs">
-              {me?.searchAtlasApiKeySet ? me.searchAtlasApiKey : <span className="text-muted-foreground italic">Not set — using shared default</span>}
-            </div>
-          </div>
-          <div>
-            <Label className="text-xs">New key</Label>
-            <Input type="password" value={saKey} onChange={e => setSaKey(e.target.value)} placeholder="sa_gAAAA…" className="font-mono text-xs" />
-            <div className="text-[11px] text-muted-foreground mt-1">Get from SearchAtlas → Settings → API</div>
-          </div>
-          <div className="flex gap-2">
-            <Button size="sm" variant="outline" onClick={testKey} disabled={testing || !saKey.trim()}>
-              {testing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
-              Test key
-            </Button>
-            <Button size="sm" onClick={save} disabled={saving || !saKey.trim()} className="bg-gradient-to-br from-blue-500 to-violet-500">Save</Button>
-            {me?.searchAtlasApiKeySet && <Button size="sm" variant="ghost" onClick={clear} className="text-rose-400 hover:text-rose-300">Remove</Button>}
-          </div>
-          {testResult && (
-            <div className={`p-3 rounded-lg text-sm border ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
-              {testResult.ok ? `✓ Valid — ${testResult.projectCount} rank-tracker projects visible` : `✗ ${testResult.error || 'Invalid key'}`}
+        <CardContent className="space-y-4">
+          {me.searchAtlasApiKeys.length > 0 && (
+            <div className="space-y-2">
+              {me.searchAtlasApiKeys.map(k => (
+                <div key={k.id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-border/60 bg-background/50">
+                  <div className="flex-1 min-w-0">
+                    <input
+                      defaultValue={k.label}
+                      onBlur={(e) => e.target.value !== k.label && renameKey(k.id, e.target.value)}
+                      className="text-sm font-medium bg-transparent border-none focus:outline-none focus:ring-1 focus:ring-blue-500 rounded px-1 -mx-1 w-full max-w-xs"
+                    />
+                    <div className="text-xs font-mono text-muted-foreground mt-0.5">{k.keyMasked}</div>
+                  </div>
+                  <Button size="sm" variant="ghost" onClick={() => removeKey(k.id)} className="text-rose-400 hover:text-rose-300">
+                    <X className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
             </div>
           )}
+
+          <Separator />
+
+          <form onSubmit={addKey} className="space-y-3">
+            <div className="text-xs uppercase tracking-widest text-muted-foreground">Add another account</div>
+            <div>
+              <Label className="text-xs">Account label</Label>
+              <Input value={newKey.label} onChange={e => setNewKey({ ...newKey, label: e.target.value })} placeholder="e.g. Wildcard, Client account, Personal" />
+            </div>
+            <div>
+              <Label className="text-xs">SearchAtlas API key</Label>
+              <Input type="password" value={newKey.key} onChange={e => setNewKey({ ...newKey, key: e.target.value })} placeholder="sa_gAAAA…" className="font-mono text-xs" />
+              <div className="text-[11px] text-muted-foreground mt-1">Get from SearchAtlas → Settings → API. We&apos;ll validate it before saving.</div>
+            </div>
+            <Button type="submit" disabled={adding || !newKey.label || !newKey.key} className="bg-gradient-to-br from-blue-500 to-violet-500">
+              {adding ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> Validating &amp; saving…</> : <>Add SearchAtlas account</>}
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
-      <Card className="bg-secondary/30 border-border/60">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Users className="w-4 h-4 text-violet-400" /> Profile</CardTitle>
-        </CardHeader>
+      <Card className="bg-secondary/30 border-border/60 h-fit">
+        <CardHeader><CardTitle className="flex items-center gap-2"><Users className="w-4 h-4 text-violet-400" /> Profile</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <div><span className="text-muted-foreground">Name:</span> {me?.name}</div>
-          <div><span className="text-muted-foreground">Email:</span> {me?.email}</div>
-          <div><span className="text-muted-foreground">Company:</span> {me?.company || '—'}</div>
+          <div><span className="text-muted-foreground">Name:</span> {me.name}</div>
+          <div><span className="text-muted-foreground">Email:</span> {me.email}</div>
+          <div><span className="text-muted-foreground">Company:</span> {me.company || '—'}</div>
           <div><span className="text-muted-foreground">Role:</span> <Badge className="ml-1">admin</Badge></div>
+          <div><span className="text-muted-foreground">Connected accounts:</span> <Badge variant="outline" className="ml-1">{me.searchAtlasApiKeys.length}</Badge></div>
         </CardContent>
       </Card>
     </div>
@@ -1606,6 +1612,7 @@ function AdminPortal({ user, go }) {
           <TabsTrigger value="audits">Audits ({audits.length})</TabsTrigger>
           <TabsTrigger value="projects">Projects ({allProjects.length})</TabsTrigger>
           <TabsTrigger value="content"><PenTool className="w-3 h-3 mr-1" />Content Genius</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
@@ -1808,6 +1815,8 @@ function AdminPortal({ user, go }) {
         </TabsContent>
 
         <TabsContent value="content"><ContentGenius /></TabsContent>
+
+        <TabsContent value="settings"><SettingsTab user={user} /></TabsContent>
       </Tabs>
 
       {/* Client edit/create modal */}
