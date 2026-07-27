@@ -106,6 +106,155 @@ async function seedAdmin() {
   } catch (e) { console.error('Admin seed failed:', e?.message || e); adminSeeded = false }
 }
 
+// Seed starter blog posts once
+let blogSeeded = false
+async function seedBlog() {
+  if (blogSeeded) return
+  blogSeeded = true
+  try {
+    const db = await getDb()
+    const count = await db.collection('posts').countDocuments({})
+    if (count > 0) return
+    const now = new Date()
+    const day = (n) => new Date(now.getTime() - n * 86400000)
+    const starters = [
+      {
+        title: 'The Connected Business System: Why Your Marketing Feels Broken',
+        slug: 'connected-business-system',
+        category: 'Strategy',
+        excerpt: 'Most agencies sell services. We build systems. Here\'s why the difference matters — and what "connected" actually looks like.',
+        coverImage: 'https://images.pexels.com/photos/8636589/pexels-photo-8636589.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940',
+        tags: ['systems', 'strategy', 'growth'],
+        author: 'Beyond Marketing',
+        published: true,
+        publishedAt: day(2),
+        body: `Most businesses don't have a marketing problem. They have a **disconnection problem**.
+
+Your website sits in one platform. Your CRM in another. Your ads run in a third dashboard. Your email tool has its own analytics. Reports live in five different tabs. And every month you're trying to make sense of numbers that don't talk to each other.
+
+That's not marketing. That's data debt.
+
+## What "Connected" actually means
+
+A connected business system is one where every touchpoint — website, CRM, ads, email, automation, reporting — is wired into a single source of truth. When a lead comes in, everyone knows. When a customer converts, the attribution is clear. When something breaks, one dashboard tells you.
+
+It's not a tool. It's an operating model.
+
+## The three phases
+
+1. **Plan** — Audit the disconnection. Map the customer journey. Define the KPIs that actually matter.
+2. **Build** — Wire the systems. Website, CRM, automation, tracking. All talking to each other.
+3. **Grow** — Optimise with clean data. Continually improve because you can finally see what's working.
+
+## Why it wins
+
+- **You own your data.** No agency lock-in.
+- **Decisions get made on truth**, not guesswork.
+- **AI actually works** because it has connected context.
+- **Everyone on your team** sees the same picture.
+
+If your marketing feels expensive, chaotic and unclear — you don't need another agency. You need a system.`,
+        resources: [
+          { label: 'Book a free discovery call', url: '/#contact' },
+          { label: 'See our Plan → Build → Grow framework', url: '/#approach' },
+        ],
+      },
+      {
+        title: 'Local SEO in 2026: The Playbook That Still Works',
+        slug: 'local-seo-2026-playbook',
+        category: 'SEO',
+        excerpt: 'Google Business Profile, citations, reviews, and structured data — the fundamentals that quietly beat every "growth hack."',
+        coverImage: 'https://images.unsplash.com/photo-1709733835523-036793e24ff3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwzfHxzdG9yZWZyb250fGVufDB8fHxibHVlfDE3ODUxMzQzNDZ8MA&ixlib=rb-4.1.0&q=85',
+        tags: ['seo', 'local', 'google-business-profile'],
+        author: 'Beyond Marketing',
+        published: true,
+        publishedAt: day(5),
+        body: `Local SEO isn't glamorous. It's not TikTok. It's not "growth hacking." But if you run a brick-and-mortar or service business, it's still the single highest-leverage channel you have.
+
+Here's the 2026 playbook we run for every local client.
+
+## 1. Google Business Profile is your homepage
+
+Not your website. Your GBP. It's where most local searches end. Optimise:
+
+- **Categories** — primary + relevant secondaries only. Don't dilute.
+- **Services** — every service you offer, with descriptions.
+- **Photos** — real, geotagged, updated monthly.
+- **Q&A** — seed the top 10 questions your customers ask.
+- **Posts** — weekly. Offers, updates, events.
+
+## 2. Reviews are ranking signals
+
+Aim for at least 40 reviews with a 4.6+ average. More importantly: **respond to every one**. Google reads your responses.
+
+## 3. NAP consistency + citations
+
+Name, Address, Phone — identical everywhere. Yelp, BBB, industry directories, chamber of commerce. Inconsistencies confuse Google.
+
+## 4. Local schema markup
+
+Add \`LocalBusiness\` schema to your website. Include hours, service area, geo coordinates. It's boring. It works.
+
+## 5. Location + service pages
+
+If you serve multiple areas, build a page per area. Unique content, unique testimonials, unique photos. No spun content.
+
+## The reality
+
+Most agencies charge you $2k/month to run ads. Meanwhile your GBP hasn't been touched in six months. Fix the fundamentals first. Everything else compounds on top.`,
+        resources: [
+          { label: 'Google Business Profile', url: 'https://business.google.com/' },
+          { label: 'Free local SEO audit', url: '/#analyzer' },
+        ],
+      },
+      {
+        title: 'AI for Marketers: What Actually Works (and What Doesn\'t)',
+        slug: 'ai-for-marketers-2026',
+        category: 'AI',
+        excerpt: 'A grounded look at where AI genuinely accelerates marketing — and where it just adds noise. From our own workflow.',
+        coverImage: 'https://images.unsplash.com/photo-1584472666879-7d92db132958?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1OTV8MHwxfHNlYXJjaHwyfHxzZW8lMjBkYXNoYm9hcmR8ZW58MHx8fGJsdWV8MTc4NTEzNDMzNHww&ixlib=rb-4.1.0&q=85',
+        tags: ['ai', 'workflow', 'productivity'],
+        author: 'Beyond Marketing',
+        published: true,
+        publishedAt: day(9),
+        body: `Every agency now claims to be "AI-powered." Most just paste ChatGPT into their process and call it a day.
+
+Here's what we've learned running AI across a full marketing stack.
+
+## Where AI genuinely helps
+
+- **Content briefs.** Not final copy. Structured briefs that turn a keyword into a topical outline, competitive gaps, and internal linking plan.
+- **SEO diagnosis.** LLMs are great at synthesising crawl data, PageSpeed, and content into a prioritised action list.
+- **Ad creative variation.** 20 headline/description variants in seconds. Then you test, not guess.
+- **Support triage.** Categorising inbound leads and routing them.
+
+## Where AI still fails
+
+- **Voice and positioning.** It flattens brands. If you don't have strong style rules, everything sounds the same.
+- **Local nuance.** LLMs hallucinate about specific businesses, service areas, and pricing.
+- **Attribution.** AI can\'t magic-up conversion data. Fix your tracking first.
+
+## Our rule
+
+AI accelerates a system. It doesn't replace one.
+
+If your marketing is disconnected, AI just amplifies the chaos. Wire the systems first. Add AI second. Watch it compound.`,
+        resources: [
+          { label: 'Our Content Genius workflow', url: '/#services' },
+        ],
+      },
+    ]
+    await db.collection('posts').insertMany(starters.map(p => ({
+      id: uuidv4(),
+      ...p,
+      readingTime: Math.max(1, Math.round((p.body || '').trim().split(/\s+/).length / 220)),
+      createdAt: p.publishedAt,
+      updatedAt: p.publishedAt,
+    })))
+    console.log(`[seed] ${starters.length} starter blog posts created`)
+  } catch (e) { console.error('Blog seed failed:', e?.message || e); blogSeeded = false }
+}
+
 function json(data, status = 200) {
   return NextResponse.json(data, { status })
 }
@@ -122,6 +271,7 @@ function verifyToken(token) {
 
 async function handler(request, ctx) {
   await seedAdmin()
+  await seedBlog()
   const params = await ctx.params
   const segments = params?.path || []
   const path = '/' + segments.join('/')
@@ -761,6 +911,51 @@ Produce the content brief JSON now.`
       return json({ error: 'OTTO project not found' }, 404)
     }
 
+    // ===== PUBLIC BLOG (Learning Hub) =====
+    // Helpers
+    const slugify = (s) => (s || '').toString().toLowerCase().trim()
+      .replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').slice(0, 80)
+    const readingTime = (md) => {
+      const words = (md || '').trim().split(/\s+/).filter(Boolean).length
+      return Math.max(1, Math.round(words / 220))
+    }
+    const publicPostShape = (p) => ({
+      id: p.id, title: p.title, slug: p.slug, excerpt: p.excerpt || '', category: p.category || 'General',
+      coverImage: p.coverImage || '', author: p.author || 'Beyond Marketing',
+      publishedAt: p.publishedAt || p.createdAt, readingTime: p.readingTime || readingTime(p.body || ''),
+      tags: Array.isArray(p.tags) ? p.tags : [],
+    })
+
+    if (path === '/blog/posts' && method === 'GET') {
+      const db = await getDb()
+      const url = new URL(request.url)
+      const category = url.searchParams.get('category')
+      const q = { published: true }
+      if (category && category !== 'All') q.category = category
+      const list = await db.collection('posts').find(q).sort({ publishedAt: -1, createdAt: -1 }).toArray()
+      const categories = await db.collection('posts').distinct('category', { published: true })
+      return json({ posts: list.map(publicPostShape), categories })
+    }
+
+    if (path.startsWith('/blog/posts/') && method === 'GET') {
+      const slug = path.split('/')[3]
+      const db = await getDb()
+      const p = await db.collection('posts').findOne({ slug, published: true })
+      if (!p) return json({ error: 'Post not found' }, 404)
+      // simple related-by-category (up to 3)
+      const related = await db.collection('posts')
+        .find({ published: true, category: p.category, id: { $ne: p.id } })
+        .sort({ publishedAt: -1 }).limit(3).toArray()
+      return json({
+        post: {
+          ...publicPostShape(p),
+          body: p.body || '',
+          resources: Array.isArray(p.resources) ? p.resources : [],
+        },
+        related: related.map(publicPostShape),
+      })
+    }
+
     // ===== ADMIN =====
     if (path.startsWith('/admin/')) {
       const decoded = verifyToken(getToken(request))
@@ -987,6 +1182,91 @@ Produce the content brief JSON now.`
         }
         if (body.password) $set.password = await bcrypt.hash(body.password, 10)
         await db.collection('users').updateOne({ id }, { $set })
+        return json({ ok: true })
+      }
+
+      // ===== ADMIN BLOG POSTS =====
+      if (path === '/admin/blog/posts' && method === 'GET') {
+        const list = await db.collection('posts').find({}).sort({ createdAt: -1 }).toArray()
+        return json({ posts: list.map(p => ({
+          id: p.id, title: p.title, slug: p.slug, category: p.category || 'General',
+          excerpt: p.excerpt || '', coverImage: p.coverImage || '', author: p.author || 'Beyond Marketing',
+          published: !!p.published, publishedAt: p.publishedAt, createdAt: p.createdAt, updatedAt: p.updatedAt,
+          tags: Array.isArray(p.tags) ? p.tags : [],
+        })) })
+      }
+
+      if (path === '/admin/blog/posts' && method === 'POST') {
+        const body = await request.json()
+        if (!body.title) return json({ error: 'Title required' }, 400)
+        let slug = (body.slug && body.slug.trim()) || slugify(body.title)
+        // ensure uniqueness
+        const exists = await db.collection('posts').findOne({ slug })
+        if (exists) slug = `${slug}-${Date.now().toString(36)}`
+        const now = new Date()
+        const doc = {
+          id: uuidv4(),
+          title: body.title.trim(),
+          slug,
+          category: (body.category || 'General').trim(),
+          excerpt: body.excerpt || '',
+          coverImage: body.coverImage || '',
+          body: body.body || '',
+          tags: Array.isArray(body.tags) ? body.tags : (body.tags ? String(body.tags).split(',').map(s => s.trim()).filter(Boolean) : []),
+          resources: Array.isArray(body.resources) ? body.resources.filter(r => r?.url) : [],
+          author: body.author || 'Beyond Marketing',
+          published: !!body.published,
+          publishedAt: body.published ? now : null,
+          readingTime: readingTime(body.body || ''),
+          createdAt: now,
+          updatedAt: now,
+        }
+        await db.collection('posts').insertOne(doc)
+        return json({ post: doc })
+      }
+
+      if (path.startsWith('/admin/blog/posts/') && method === 'GET') {
+        const id = path.split('/')[4]
+        const p = await db.collection('posts').findOne({ id })
+        if (!p) return json({ error: 'Not found' }, 404)
+        return json({ post: p })
+      }
+
+      if (path.startsWith('/admin/blog/posts/') && method === 'PATCH') {
+        const id = path.split('/')[4]
+        const body = await request.json()
+        const existing = await db.collection('posts').findOne({ id })
+        if (!existing) return json({ error: 'Not found' }, 404)
+        const $set = { updatedAt: new Date() }
+        for (const k of ['title', 'category', 'excerpt', 'coverImage', 'body', 'author']) {
+          if (k in body) $set[k] = body[k]
+        }
+        if ('slug' in body && body.slug) {
+          const newSlug = slugify(body.slug)
+          if (newSlug !== existing.slug) {
+            const clash = await db.collection('posts').findOne({ slug: newSlug, id: { $ne: id } })
+            $set.slug = clash ? `${newSlug}-${Date.now().toString(36)}` : newSlug
+          }
+        }
+        if ('tags' in body) {
+          $set.tags = Array.isArray(body.tags) ? body.tags : String(body.tags || '').split(',').map(s => s.trim()).filter(Boolean)
+        }
+        if ('resources' in body) {
+          $set.resources = Array.isArray(body.resources) ? body.resources.filter(r => r?.url) : []
+        }
+        if ('body' in body) $set.readingTime = readingTime(body.body || '')
+        if ('published' in body) {
+          $set.published = !!body.published
+          if (body.published && !existing.publishedAt) $set.publishedAt = new Date()
+        }
+        await db.collection('posts').updateOne({ id }, { $set })
+        const updated = await db.collection('posts').findOne({ id })
+        return json({ post: updated })
+      }
+
+      if (path.startsWith('/admin/blog/posts/') && method === 'DELETE') {
+        const id = path.split('/')[4]
+        await db.collection('posts').deleteOne({ id })
         return json({ ok: true })
       }
     }

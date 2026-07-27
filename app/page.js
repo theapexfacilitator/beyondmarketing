@@ -17,7 +17,8 @@ import {
   ArrowRight, Sparkles, Zap, Shield, LineChart, Target, Layers, Cpu, Rocket, Users, Database,
   Compass, Hammer, TrendingUp, CheckCircle2, ChevronRight, Menu, X, Play, BookOpen,
   Search, PenTool, Workflow, BarChart3, Bell, LogOut, ArrowUpRight, ArrowDownRight,
-  Circle, Globe, Mail, MessageSquare, PieChart as PieIcon, Loader2, Star
+  Circle, Globe, Mail, MessageSquare, PieChart as PieIcon, Loader2, Star,
+  FileText, Calendar, Clock, Tag, ExternalLink, Edit3, Trash2, Plus, Save, Eye, EyeOff, Link2, ArrowLeft
 } from 'lucide-react'
 import {
   LineChart as ReLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -847,29 +848,133 @@ function ConnectedPage({ go }) {
 }
 
 function Learning({ go }) {
-  const courses = [
-    { t: 'Marketing Fundamentals', l: 12, c: 'Foundations' },
-    { t: 'Local SEO Playbook', l: 9, c: 'SEO' },
-    { t: 'Building a Connected Stack', l: 7, c: 'Systems' },
-    { t: 'CRM Setup in HubSpot', l: 14, c: 'CRM' },
-    { t: 'AI for Marketers', l: 8, c: 'AI' },
-    { t: 'Reporting that Drives Action', l: 6, c: 'Analytics' },
-  ]
+  const [posts, setPosts] = useState([])
+  const [categories, setCategories] = useState(['All'])
+  const [activeCat, setActiveCat] = useState('All')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    const q = activeCat && activeCat !== 'All' ? `?category=${encodeURIComponent(activeCat)}` : ''
+    fetch(`/api/blog/posts${q}`)
+      .then(r => r.json())
+      .then(d => {
+        if (cancelled) return
+        setPosts(d.posts || [])
+        if (activeCat === 'All') setCategories(['All', ...(d.categories || [])])
+      })
+      .finally(() => !cancelled && setLoading(false))
+    return () => { cancelled = true }
+  }, [activeCat])
+
+  const featured = posts[0]
+  const rest = posts.slice(1)
+
   return (
     <div>
-      <PageHeader eyebrow="Learning Hub" title="Members-only growth education." desc="Courses, playbooks, SOPs and templates to master connected marketing." />
-      <section className="container mx-auto px-4 py-8 grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {courses.map(c => (
-          <Card key={c.t} className="bg-secondary/30 border-border/60 hover:border-blue-500/40 transition">
-            <CardHeader>
-              <Badge variant="outline" className="w-fit border-blue-500/30 bg-blue-500/5 text-blue-300">{c.c}</Badge>
-              <CardTitle className="mt-2">{c.t}</CardTitle>
-              <CardDescription>{c.l} lessons · self-paced</CardDescription>
-            </CardHeader>
-            <CardContent><Button size="sm" variant="outline"><Play className="w-3.5 h-3.5 mr-1.5" />Preview</Button></CardContent>
-          </Card>
-        ))}
+      <PageHeader eyebrow="Learning Hub" title="Playbooks, insights & growth resources." desc="Deep dives into connected marketing, SEO, automation and AI — from our team to yours." />
+
+      {/* Category filter */}
+      <section className="container mx-auto px-4">
+        <div className="flex flex-wrap gap-2 mb-8">
+          {categories.map(c => (
+            <button
+              key={c}
+              onClick={() => setActiveCat(c)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition border ${activeCat === c ? 'bg-blue-500 text-white border-blue-500' : 'bg-secondary/40 text-muted-foreground border-border/60 hover:text-foreground hover:border-blue-500/40'}`}
+            >{c}</button>
+          ))}
+        </div>
       </section>
+
+      {loading ? (
+        <section className="container mx-auto px-4 py-12 text-center text-muted-foreground">
+          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-3" />
+          Loading articles...
+        </section>
+      ) : posts.length === 0 ? (
+        <section className="container mx-auto px-4 py-16 text-center">
+          <FileText className="w-10 h-10 mx-auto text-muted-foreground/40 mb-4" />
+          <div className="text-lg font-semibold">No articles yet</div>
+          <p className="text-sm text-muted-foreground mt-2">We&apos;re putting the finishing touches on our first playbooks. Check back soon.</p>
+        </section>
+      ) : (
+        <>
+          {/* Featured hero article */}
+          {featured && (
+            <section className="container mx-auto px-4 pb-12">
+              <a href={`/learn/${featured.slug}`} className="group block">
+                <div className="grid md:grid-cols-2 gap-8 rounded-2xl overflow-hidden border border-border/60 bg-secondary/30 hover:border-blue-500/40 transition">
+                  <div className="aspect-video md:aspect-auto relative overflow-hidden bg-secondary">
+                    {featured.coverImage ? (
+                      <img src={featured.coverImage} alt={featured.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    ) : (
+                      <div className="w-full h-full grid place-items-center bg-gradient-to-br from-blue-500/20 to-violet-500/10">
+                        <FileText className="w-14 h-14 text-blue-400/40" />
+                      </div>
+                    )}
+                    <div className="absolute top-4 left-4">
+                      <Badge className="bg-gradient-to-br from-blue-500 to-violet-500 text-white border-0">Featured</Badge>
+                    </div>
+                  </div>
+                  <div className="p-6 md:p-10 flex flex-col justify-center">
+                    <div className="flex items-center gap-3 mb-3">
+                      <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-300">{featured.category}</Badge>
+                      <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{featured.readingTime} min read</span>
+                    </div>
+                    <h2 className="text-3xl md:text-4xl font-semibold tracking-tight group-hover:text-gradient transition">{featured.title}</h2>
+                    <p className="mt-3 text-muted-foreground leading-relaxed">{featured.excerpt}</p>
+                    <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
+                      <span>{featured.author}</span>
+                      <span>·</span>
+                      <span>{new Date(featured.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                    </div>
+                    <div className="mt-6 inline-flex items-center gap-2 text-blue-400 group-hover:gap-3 transition-all text-sm font-medium">
+                      Read article <ArrowRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </div>
+              </a>
+            </section>
+          )}
+
+          {/* Grid of remaining posts */}
+          {rest.length > 0 && (
+            <section className="container mx-auto px-4 pb-16 grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {rest.map(p => (
+                <a key={p.id} href={`/learn/${p.slug}`} className="group">
+                  <Card className="bg-secondary/30 border-border/60 hover:border-blue-500/40 transition h-full overflow-hidden">
+                    <div className="aspect-video overflow-hidden bg-secondary relative">
+                      {p.coverImage ? (
+                        <img src={p.coverImage} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      ) : (
+                        <div className="w-full h-full grid place-items-center bg-gradient-to-br from-blue-500/10 to-violet-500/5">
+                          <FileText className="w-10 h-10 text-blue-400/30" />
+                        </div>
+                      )}
+                    </div>
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-300 text-[10px]">{p.category}</Badge>
+                        <span className="text-[10px] text-muted-foreground flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{p.readingTime} min</span>
+                      </div>
+                      <CardTitle className="text-lg group-hover:text-gradient transition">{p.title}</CardTitle>
+                      <CardDescription className="line-clamp-2">{p.excerpt}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(p.publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </a>
+              ))}
+            </section>
+          )}
+        </>
+      )}
+
       <FinalCTA go={go} />
     </div>
   )
@@ -1345,6 +1450,288 @@ function SettingsTab({ user }) {
   )
 }
 
+function BlogManager() {
+  const [posts, setPosts] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editing, setEditing] = useState(null)
+  const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
+  const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+  const load = async () => {
+    setLoading(true)
+    const r = await fetch('/api/admin/blog/posts', { headers: h })
+    if (r.ok) { const d = await r.json(); setPosts(d.posts || []) }
+    setLoading(false)
+  }
+  useEffect(() => { load() }, [])
+
+  const savePost = async (data) => {
+    const isNew = !data.id
+    const url = isNew ? '/api/admin/blog/posts' : `/api/admin/blog/posts/${data.id}`
+    const method = isNew ? 'POST' : 'PATCH'
+    const body = { ...data }
+    if (!isNew) delete body.id
+    const r = await fetch(url, { method, headers: h, body: JSON.stringify(body) })
+    const d = await r.json()
+    if (!r.ok) { toast.error(d.error || 'Failed'); return false }
+    toast.success(isNew ? 'Post created' : 'Post updated')
+    setEditing(null)
+    load()
+    return true
+  }
+
+  const togglePublish = async (post) => {
+    const r = await fetch(`/api/admin/blog/posts/${post.id}`, {
+      method: 'PATCH', headers: h,
+      body: JSON.stringify({ published: !post.published }),
+    })
+    if (r.ok) { toast.success(post.published ? 'Unpublished' : 'Published'); load() }
+  }
+
+  const deletePost = async (post) => {
+    if (!confirm(`Delete "${post.title}"? This cannot be undone.`)) return
+    const r = await fetch(`/api/admin/blog/posts/${post.id}`, { method: 'DELETE', headers: h })
+    if (r.ok) { toast.success('Post deleted'); load() }
+  }
+
+  if (editing) return <BlogEditor initial={editing} onSave={savePost} onCancel={() => setEditing(null)} />
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <div className="text-lg font-semibold">Blog Posts</div>
+          <div className="text-xs text-muted-foreground">Author articles that appear in the public Learning Hub.</div>
+        </div>
+        <Button onClick={() => setEditing({})} className="bg-gradient-to-br from-blue-500 to-violet-500">
+          <Plus className="w-4 h-4 mr-1.5" /> New post
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="py-16 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></div>
+      ) : posts.length === 0 ? (
+        <Card className="bg-secondary/30 border-border/60">
+          <CardContent className="py-16 text-center">
+            <FileText className="w-8 h-8 text-muted-foreground/40 mx-auto mb-3" />
+            <div className="font-semibold">No posts yet</div>
+            <p className="text-sm text-muted-foreground mt-1">Publish your first article to populate the Learning Hub.</p>
+            <Button onClick={() => setEditing({})} size="sm" className="mt-4 bg-gradient-to-br from-blue-500 to-violet-500">
+              <Plus className="w-3.5 h-3.5 mr-1.5" /> Write first post
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-2">
+          {posts.map(p => (
+            <Card key={p.id} className="bg-secondary/30 border-border/60">
+              <CardContent className="p-4 flex items-center gap-4">
+                <div className="w-20 h-16 rounded-md bg-secondary overflow-hidden flex-shrink-0">
+                  {p.coverImage ? (
+                    <img src={p.coverImage} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full grid place-items-center"><FileText className="w-5 h-5 text-muted-foreground/40" /></div>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <div className="font-semibold truncate">{p.title}</div>
+                    {p.published ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 border">Published</Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-300">Draft</Badge>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate mt-0.5">
+                    {p.category} · /learn/{p.slug} · {new Date(p.updatedAt || p.createdAt).toLocaleDateString()}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {p.published && (
+                    <a href={`/learn/${p.slug}`} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="icon" title="View live"><ExternalLink className="w-4 h-4" /></Button>
+                    </a>
+                  )}
+                  <Button variant="ghost" size="icon" onClick={() => togglePublish(p)} title={p.published ? 'Unpublish' : 'Publish'}>
+                    {p.published ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setEditing(p)} title="Edit">
+                    <Edit3 className="w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => deletePost(p)} title="Delete" className="text-rose-400 hover:text-rose-300">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BlogEditor({ initial, onSave, onCancel }) {
+  const [form, setForm] = useState({
+    title: initial?.title || '',
+    slug: initial?.slug || '',
+    category: initial?.category || 'Growth',
+    excerpt: initial?.excerpt || '',
+    coverImage: initial?.coverImage || '',
+    body: initial?.body || '',
+    tags: (Array.isArray(initial?.tags) ? initial.tags.join(', ') : (initial?.tags || '')),
+    author: initial?.author || 'Beyond Marketing',
+    published: !!initial?.published,
+  })
+  const [resources, setResources] = useState(
+    Array.isArray(initial?.resources) && initial.resources.length ? initial.resources : []
+  )
+  const [saving, setSaving] = useState(false)
+  const [preview, setPreview] = useState(false)
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e?.target ? e.target.value : e }))
+
+  const addResource = () => setResources(r => [...r, { label: '', url: '' }])
+  const updateResource = (i, key, val) => setResources(r => r.map((x, idx) => idx === i ? { ...x, [key]: val } : x))
+  const removeResource = (i) => setResources(r => r.filter((_, idx) => idx !== i))
+
+  const submit = async (publish) => {
+    if (!form.title.trim()) { toast.error('Title required'); return }
+    setSaving(true)
+    const payload = {
+      ...form,
+      id: initial?.id,
+      published: publish !== undefined ? publish : form.published,
+      resources: resources.filter(r => r.url),
+    }
+    await onSave(payload)
+    setSaving(false)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2">
+          <Button variant="ghost" size="sm" onClick={onCancel}><ArrowLeft className="w-4 h-4 mr-1.5" />Back</Button>
+          <div>
+            <div className="text-lg font-semibold">{initial?.id ? 'Edit post' : 'New post'}</div>
+            <div className="text-xs text-muted-foreground">{form.published ? 'Currently published' : 'Draft'}</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setPreview(p => !p)}>
+            {preview ? <><Edit3 className="w-3.5 h-3.5 mr-1.5" />Edit</> : <><Eye className="w-3.5 h-3.5 mr-1.5" />Preview</>}
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => submit(false)} disabled={saving}>
+            <Save className="w-3.5 h-3.5 mr-1.5" />Save draft
+          </Button>
+          <Button size="sm" onClick={() => submit(true)} disabled={saving} className="bg-gradient-to-br from-blue-500 to-violet-500">
+            {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Sparkles className="w-3.5 h-3.5 mr-1.5" />}
+            Publish
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-[1fr,320px] gap-4">
+        <Card className="bg-secondary/30 border-border/60">
+          <CardContent className="p-5 space-y-4">
+            {preview ? (
+              <div className="prose prose-invert prose-blue max-w-none prose-headings:font-semibold prose-p:text-muted-foreground prose-strong:text-foreground prose-a:text-blue-400">
+                <h1>{form.title || 'Untitled'}</h1>
+                {form.excerpt && <p className="lead">{form.excerpt}</p>}
+                <ReactMarkdownSafe body={form.body} />
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label>Title *</Label>
+                  <Input value={form.title} onChange={set('title')} placeholder="Your compelling headline" className="mt-1" />
+                </div>
+                <div>
+                  <Label>Excerpt / summary</Label>
+                  <Textarea value={form.excerpt} onChange={set('excerpt')} placeholder="1-2 sentences shown in the article card" className="mt-1" rows={2} />
+                </div>
+                <div>
+                  <Label>Body (Markdown supported)</Label>
+                  <Textarea value={form.body} onChange={set('body')} placeholder="# Section title&#10;&#10;Write your article using **markdown**. You can use headings, lists, links, code blocks, images (![alt](url)), and blockquotes." className="mt-1 font-mono text-sm" rows={20} />
+                  <div className="text-[10px] text-muted-foreground mt-1">Supports GitHub-flavored markdown: headings, lists, tables, code blocks, images, links, blockquotes.</div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <div className="space-y-4">
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader className="pb-3"><CardTitle className="text-sm">Metadata</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <Label className="text-xs">Slug (URL)</Label>
+                <Input value={form.slug} onChange={set('slug')} placeholder="auto-generated from title" className="mt-1 text-xs" />
+                {form.slug && <div className="text-[10px] text-muted-foreground mt-1">/learn/{form.slug}</div>}
+              </div>
+              <div>
+                <Label className="text-xs">Category</Label>
+                <Input value={form.category} onChange={set('category')} placeholder="e.g. SEO, Growth, AI" className="mt-1 text-xs" />
+              </div>
+              <div>
+                <Label className="text-xs">Cover image URL</Label>
+                <Input value={form.coverImage} onChange={set('coverImage')} placeholder="https://..." className="mt-1 text-xs" />
+                {form.coverImage && (
+                  <div className="mt-2 aspect-video rounded-md overflow-hidden border border-border/60">
+                    <img src={form.coverImage} alt="preview" className="w-full h-full object-cover" onError={(e) => e.currentTarget.style.display = 'none'} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs">Tags (comma-separated)</Label>
+                <Input value={form.tags} onChange={set('tags')} placeholder="seo, local, gbp" className="mt-1 text-xs" />
+              </div>
+              <div>
+                <Label className="text-xs">Author</Label>
+                <Input value={form.author} onChange={set('author')} className="mt-1 text-xs" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-secondary/30 border-border/60">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-sm flex items-center gap-1.5"><Link2 className="w-3.5 h-3.5" />Resources</CardTitle>
+              <Button variant="ghost" size="sm" onClick={addResource}><Plus className="w-3 h-3 mr-1" />Add</Button>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {resources.length === 0 && <div className="text-xs text-muted-foreground">Add reference links, downloads or tools.</div>}
+              {resources.map((r, i) => (
+                <div key={i} className="space-y-1.5 p-2 rounded-md bg-background/40 border border-border/40">
+                  <Input value={r.label} onChange={(e) => updateResource(i, 'label', e.target.value)} placeholder="Label (e.g. Free template)" className="text-xs h-8" />
+                  <div className="flex gap-1">
+                    <Input value={r.url} onChange={(e) => updateResource(i, 'url', e.target.value)} placeholder="https://..." className="text-xs h-8" />
+                    <Button variant="ghost" size="icon" onClick={() => removeResource(i)} className="h-8 w-8 text-rose-400 hover:text-rose-300"><X className="w-3.5 h-3.5" /></Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Lightweight lazy markdown preview using dynamic import to avoid SSR issues in admin panel
+function ReactMarkdownSafe({ body }) {
+  const [Mod, setMod] = useState(null)
+  useEffect(() => {
+    Promise.all([import('react-markdown'), import('remark-gfm')]).then(([m, g]) => {
+      setMod({ ReactMarkdown: m.default, remarkGfm: g.default })
+    })
+  }, [])
+  if (!Mod) return <div className="text-xs text-muted-foreground">Rendering preview...</div>
+  const { ReactMarkdown, remarkGfm } = Mod
+  return <ReactMarkdown remarkPlugins={[remarkGfm]}>{body || '_No content yet._'}</ReactMarkdown>
+}
+
+
 function ContentGenius() {
   const [form, setForm] = useState({ keyword: '', targetAudience: '', tone: 'professional and confident', wordCount: 1500, businessContext: '' })
   const [loading, setLoading] = useState(false)
@@ -1698,6 +2085,7 @@ function AdminPortal({ user, go }) {
           <TabsTrigger value="audits">Audits ({audits.length})</TabsTrigger>
           <TabsTrigger value="projects">Projects ({allProjects.length})</TabsTrigger>
           <TabsTrigger value="content"><PenTool className="w-3 h-3 mr-1" />Content Genius</TabsTrigger>
+          <TabsTrigger value="blog"><FileText className="w-3 h-3 mr-1" />Blog</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -1901,6 +2289,8 @@ function AdminPortal({ user, go }) {
         </TabsContent>
 
         <TabsContent value="content"><ContentGenius /></TabsContent>
+
+        <TabsContent value="blog"><BlogManager /></TabsContent>
 
         <TabsContent value="settings"><SettingsTab user={user} /></TabsContent>
       </Tabs>
