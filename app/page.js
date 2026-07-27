@@ -863,27 +863,99 @@ function Learning({ go }) {
 
 function Pricing({ go }) {
   const plans = [
-    { n: 'Plan', price: '$1,500', p: 'month', tag: 'For strategy', features: ['Marketing Audit','Growth Strategy','Quarterly Reviews','Reporting Dashboard'] },
-    { n: 'Build', price: '$4,500', p: 'month', tag: 'Most popular', features: ['Everything in Plan','SEO & Content','Connected Systems Setup','CRM + Automation','Landing Pages'], featured: true },
-    { n: 'Grow', price: 'Custom', p: '', tag: 'Full ecosystem', features: ['Everything in Build','Dedicated Team','AI Insights','Full-service Reporting','Priority Support'] },
+    {
+      n: 'Starter',
+      price: '$750',
+      p: 'month',
+      tag: 'Local businesses',
+      desc: 'Brick-and-mortar & local service areas',
+      features: [
+        'Local SEO fundamentals',
+        'Google Business Profile setup & optimisation',
+        'Citation management',
+        'Local keyword tracking',
+        'Monthly performance report',
+      ],
+    },
+    {
+      n: 'Plan',
+      price: '$1,500',
+      p: 'month',
+      tag: 'Strategy first',
+      desc: 'Understand where you are and where you\'re going',
+      features: [
+        'Marketing Audit',
+        'Growth Strategy',
+        'Brand Positioning',
+        'Quarterly Reviews',
+        'Reporting Dashboard',
+      ],
+    },
+    {
+      n: 'Marketing',
+      price: '$2,000',
+      p: 'month',
+      tag: 'Full marketing implementation',
+      desc: 'Marketing execution for growing businesses',
+      features: [
+        'Everything in Starter',
+        'Full SEO (Local + Technical + AI Search)',
+        'Content strategy & production',
+        'Google & Meta ads management',
+        'Email marketing',
+        'Monthly reporting & optimisation',
+      ],
+    },
+    {
+      n: 'Build',
+      price: '$4,500',
+      p: 'month',
+      tag: 'Most popular',
+      desc: 'The full connected growth system',
+      features: [
+        'Everything in Marketing',
+        'Connected Business Systems setup',
+        'CRM + Automation',
+        'Website & Landing Pages',
+        'Analytics & Dashboards',
+        'Workflow Automation',
+      ],
+      featured: true,
+    },
+    {
+      n: 'Grow',
+      price: 'Custom',
+      p: '',
+      tag: 'Full ecosystem',
+      desc: 'Your outsourced growth department',
+      features: [
+        'Everything in Build',
+        'Dedicated team',
+        'AI insights & recommendations',
+        'Full-service reporting',
+        'Priority support',
+        'Quarterly strategy sessions',
+      ],
+    },
   ]
   return (
     <div>
       <PageHeader eyebrow="Pricing" title="Simple, scalable, aligned to growth." desc="No lock-in. You own everything we build." />
-      <section className="container mx-auto px-4 py-8 grid md:grid-cols-3 gap-5">
+      <section className="container mx-auto px-4 py-8 grid md:grid-cols-2 lg:grid-cols-5 gap-4">
         {plans.map(p => (
-          <Card key={p.n} className={`relative ${p.featured ? 'border-blue-500/50 shadow-2xl shadow-blue-500/10' : 'border-border/60'} bg-secondary/30`}>
-            {p.featured && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-blue-500 to-violet-500 text-white border-0">Most popular</Badge>}
+          <Card key={p.n} className={`relative ${p.featured ? 'border-blue-500/50 shadow-2xl shadow-blue-500/10 md:scale-[1.02]' : 'border-border/60'} bg-secondary/30`}>
+            {p.featured && <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-br from-blue-500 to-violet-500 text-white border-0 whitespace-nowrap">Most popular</Badge>}
             <CardHeader>
               <div className="text-xs uppercase tracking-widest text-muted-foreground">{p.tag}</div>
-              <CardTitle className="text-3xl">{p.n}</CardTitle>
-              <div className="text-4xl font-semibold mt-2">{p.price}<span className="text-sm text-muted-foreground font-normal">{p.p ? ' / ' + p.p : ''}</span></div>
+              <CardTitle className="text-2xl">{p.n}</CardTitle>
+              {p.desc && <CardDescription className="text-xs">{p.desc}</CardDescription>}
+              <div className="text-3xl font-semibold mt-2">{p.price}<span className="text-sm text-muted-foreground font-normal">{p.p ? ' / ' + p.p : ''}</span></div>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm mb-6">
-                {p.features.map(f => <li key={f} className="flex gap-2 text-muted-foreground"><CheckCircle2 className="w-4 h-4 text-emerald-400" />{f}</li>)}
+                {p.features.map(f => <li key={f} className="flex gap-2 text-muted-foreground"><CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0 mt-0.5" />{f}</li>)}
               </ul>
-              <Button className="w-full" variant={p.featured ? 'default' : 'outline'} onClick={() => go('contact')}>Choose {p.n}</Button>
+              <Button className="w-full" variant={p.featured ? 'default' : 'outline'} onClick={() => go('contact')} size="sm">Choose {p.n}</Button>
             </CardContent>
           </Card>
         ))}
