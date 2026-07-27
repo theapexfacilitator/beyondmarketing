@@ -276,7 +276,7 @@ function Hero({ go }) {
 }
 
 function LogoBar() {
-  const items = ['HubSpot', 'SearchAtlas', 'Google Ads', 'Meta', 'Stripe', 'Zapier', 'Slack', 'Airtable']
+  const items = ['HubSpot', 'SearchAtlas', 'Google Analytics', 'Google Business Profile', 'Stripe', 'Zapier', 'Slack', 'Airtable']
   return (
     <section className="border-y border-border/50 bg-secondary/30">
       <div className="container mx-auto px-4 py-8">
@@ -783,7 +783,7 @@ function PhasePage({ phase, go }) {
       title: 'Build', desc: 'Execute through connected marketing systems.',
       groups: [
         { t: 'Search Authority', items: ['Local SEO','Technical SEO','AI Search Optimisation','Google Business Profile','Keyword Strategy','Citation Management','Content Optimisation','SearchAtlas Optimisation','Link Building'] },
-        { t: 'Content & Campaigns', items: ['Content Strategy','Website Copy','Blogs','Landing Pages','Email Marketing','Lead Magnets','Campaign Planning','Social Media','Case Studies','Video Strategy'] },
+        { t: 'Content & Campaigns', items: ['Content Strategy','Website Copy','Blogs','Landing Pages','Lead Magnets','Campaign Planning','Organic Social Media','Social Media Content & Posting','Case Studies','Video Strategy'] },
         { t: 'Implementation', items: ['Website Development','CRM Setup','Marketing Automation','Workflow Automation','Analytics Setup','Landing Pages','SEO Implementation','Dashboards','Integrations','Conversion Optimisation'] },
       ],
     },
@@ -877,7 +877,7 @@ function Learning({ go }) {
 
 const PACKAGES = [
   {
-    n: 'Local', price: '$750', p: 'month', tag: 'Local businesses',
+    n: 'Local', price: '$500', p: 'month', tag: 'Local businesses',
     desc: 'Brick-and-mortar & local service areas',
     features: [
       'Local SEO fundamentals',
@@ -899,19 +899,19 @@ const PACKAGES = [
     ],
   },
   {
-    n: 'Momentum', price: '$2,000', p: 'month', tag: 'Full marketing implementation',
+    n: 'Momentum', price: '$2,000', p: 'month', tag: 'Most popular',
     desc: 'Marketing execution for growing businesses',
     features: [
       'Everything in Local',
       'Full SEO (Local + Technical + AI Search)',
       'Content strategy & production',
-      'Google & Meta ads management',
-      'Email marketing',
+      'Organic social media content & posting',
       'Monthly reporting & optimisation',
     ],
+    featured: true,
   },
   {
-    n: 'Systems', price: '$4,500', p: 'month', tag: 'Most popular',
+    n: 'Systems', price: '$4,500', p: 'month', tag: 'Connected system',
     desc: 'The full connected growth system',
     features: [
       'Everything in Momentum',
@@ -921,7 +921,6 @@ const PACKAGES = [
       'Analytics & Dashboards',
       'Workflow Automation',
     ],
-    featured: true,
   },
   {
     n: 'Partnership', price: 'Custom', p: '', tag: 'Full ecosystem',

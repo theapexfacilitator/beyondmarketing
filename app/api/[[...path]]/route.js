@@ -363,7 +363,7 @@ Produce the audit JSON now.`
 
       const tasks = realTasks.length ? realTasks.map(t => ({ id: t.id, title: t.title, due: t.due, owner: t.owner, done: !!t.done })) : [
         { title: 'Approve brand voice guide', due: '2 days', owner: 'Client' },
-        { title: 'Provide Google Ads access', due: 'Today', owner: 'Client' },
+        { title: 'Provide Google Business Profile access', due: 'Today', owner: 'Client' },
         { title: 'Review Q3 content calendar', due: '5 days', owner: 'Client' },
       ]
 
