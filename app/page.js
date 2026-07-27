@@ -968,6 +968,291 @@ function Auth({ mode, setUser, go }) {
   )
 }
 
+function OttoTab() {
+  const [otto, setOtto] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState(null)
+  const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
+
+  useEffect(() => {
+    fetch('/api/searchatlas/otto', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(d => setOtto(d.otto || [])).finally(() => setLoading(false))
+  }, [])
+
+  const totalTimeSaved = otto.reduce((s, o) => s + (o.timeSavedMinutes || 0), 0)
+  const totalDeployedFixes = otto.reduce((s, o) => s + (o.afterSummary?.deployed_fixes || 0), 0)
+  const avgGrade = otto.length ? Math.round(otto.reduce((s, o) => s + (o.aiGradeOverall || 0), 0) / otto.length) : 0
+  const activeSites = otto.filter(o => o.autopilotActive).length
+
+  if (loading) return <div className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" /></div>
+  if (!otto.length) return <div className="text-sm text-muted-foreground p-4 text-center">No OTTO sites connected.</div>
+
+  const fmtMins = (m) => {
+    if (!m) return '0m'
+    if (m < 60) return `${m}m`
+    if (m < 60 * 24) return `${Math.floor(m / 60)}h ${m % 60}m`
+    const d = Math.floor(m / (60 * 24))
+    const h = Math.floor((m % (60 * 24)) / 60)
+    return `${d}d ${h}h`
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Summary tiles */}
+      <div className="grid md:grid-cols-4 gap-3">
+        <Card className="bg-gradient-to-br from-blue-500/10 to-violet-500/10 border-blue-500/30">
+          <CardContent className="p-5">
+            <Zap className="w-5 h-5 text-blue-400 mb-2" />
+            <div className="text-3xl font-semibold">{fmtMins(totalTimeSaved)}</div>
+            <div className="text-xs text-muted-foreground mt-1">Total time saved by OTTO</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-secondary/30 border-border/60">
+          <CardContent className="p-5">
+            <CheckCircle2 className="w-5 h-5 text-emerald-400 mb-2" />
+            <div className="text-3xl font-semibold">{totalDeployedFixes}</div>
+            <div className="text-xs text-muted-foreground mt-1">Auto-deployed fixes</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-secondary/30 border-border/60">
+          <CardContent className="p-5">
+            <TrendingUp className="w-5 h-5 text-violet-400 mb-2" />
+            <div className="text-3xl font-semibold">{avgGrade}</div>
+            <div className="text-xs text-muted-foreground mt-1">Avg. AI Grade</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-secondary/30 border-border/60">
+          <CardContent className="p-5">
+            <Cpu className="w-5 h-5 text-amber-400 mb-2" />
+            <div className="text-3xl font-semibold">{activeSites}/{otto.length}</div>
+            <div className="text-xs text-muted-foreground mt-1">Autopilot active</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* OTTO sites list */}
+      <div className="space-y-3">
+        {otto.map(o => (
+          <Card key={o.uuid} className="bg-secondary/30 border-border/60 hover:border-blue-500/40 transition-colors">
+            <CardHeader>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <CardTitle className="flex items-center gap-2"><Globe className="w-4 h-4 text-blue-400" /> {o.hostname}</CardTitle>
+                    {o.autopilotActive ? (
+                      <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30 border">
+                        <Circle className="w-2 h-2 mr-1.5 fill-emerald-400 text-emerald-400 animate-pulse" /> Autopilot ON
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-amber-500/30 text-amber-300">Autopilot OFF</Badge>
+                    )}
+                    {o.installStatus === 'success' && (
+                      <Badge variant="outline" className="border-blue-500/30 bg-blue-500/5 text-blue-300 text-[10px]">
+                        {o.installLabel}
+                      </Badge>
+                    )}
+                  </div>
+                  <CardDescription className="mt-1">
+                    {o.cms ? `${o.cms.charAt(0).toUpperCase() + o.cms.slice(1)} · ` : ''}
+                    Last analysis {o.lastAnalysis ? new Date(o.lastAnalysis).toLocaleDateString() : '—'}
+                    {o.connected?.is_gsc_connected && ' · GSC ✓'}
+                    {o.connected?.is_gbp_connected && ' · GBP ✓'}
+                  </CardDescription>
+                </div>
+                <div className="text-right">
+                  <div className="text-3xl font-semibold text-gradient">{o.aiGradeOverall}</div>
+                  <div className="text-xs text-muted-foreground">AI Grade</div>
+                  {o.aiGradeDelta !== 0 && (
+                    <div className={`text-xs mt-1 ${o.aiGradeDelta > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {o.aiGradeDelta > 0 ? '↑' : '↓'} {Math.abs(o.aiGradeDelta)}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Holistic scores */}
+              {o.holisticScores && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {[
+                    { l: 'Technical', v: o.holisticScores.technical_score, d: o.holisticScoresDelta?.technical_score },
+                    { l: 'Content', v: o.holisticScores.content_score, d: o.holisticScoresDelta?.content_score },
+                    { l: 'Authority', v: o.holisticScores.authority_score, d: o.holisticScoresDelta?.authority_score },
+                    { l: 'UX Signal', v: o.holisticScores.ux_signal_score, d: o.holisticScoresDelta?.ux_signal_score },
+                  ].map(s => (
+                    <div key={s.l} className="p-3 rounded-lg border border-border/60 bg-background/50">
+                      <div className="text-xs text-muted-foreground">{s.l}</div>
+                      <div className="flex items-baseline gap-2">
+                        <div className="text-2xl font-semibold">{s.v ?? '—'}</div>
+                        {s.d !== undefined && s.d !== 0 && (
+                          <div className={`text-xs ${s.d > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{s.d > 0 ? '+' : ''}{s.d}</div>
+                        )}
+                      </div>
+                      <div className="mt-1 h-1 rounded-full bg-secondary overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-500 to-violet-500" style={{ width: `${s.v || 0}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Site summary */}
+              {o.afterSummary && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                  {[
+                    { l: 'SEO Score', v: o.afterSummary.seo_optimization_score, c: 'text-blue-400' },
+                    { l: 'Pages', v: o.afterSummary.total_pages, c: '' },
+                    { l: 'Healthy', v: o.afterSummary.healthy_pages, c: 'text-emerald-400' },
+                    { l: 'Issues found', v: o.afterSummary.found_issues, c: 'text-amber-400' },
+                    { l: 'Fixes deployed', v: o.afterSummary.deployed_fixes, c: 'text-violet-400' },
+                  ].map(s => (
+                    <div key={s.l} className="text-center p-2 rounded-lg border border-border/60 bg-background/50">
+                      <div className={`text-xl font-semibold ${s.c}`}>{s.v ?? '—'}</div>
+                      <div className="text-[10px] text-muted-foreground uppercase tracking-widest">{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-center justify-between pt-2 border-t border-border/40">
+                <div className="text-xs text-muted-foreground flex items-center gap-4 flex-wrap">
+                  <span className="flex items-center gap-1"><Zap className="w-3 h-3 text-blue-400" /> {fmtMins(o.timeSavedMinutes)} saved</span>
+                  {o.pagesWithIssues > 0 && <span>· {o.pagesWithIssues} pages with issues</span>}
+                  {o.nextAnalysisAt && <span>· Next crawl {new Date(o.nextAnalysisAt).toLocaleDateString()}</span>}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="ghost" onClick={() => setSelected(o)}>Install code</Button>
+                  <a href={`https://dashboard.searchatlas.com/otto-page-v2/${o.uuid}`} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline">Open in OTTO <ArrowUpRight className="w-3.5 h-3.5 ml-1" /></Button>
+                  </a>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>OTTO install code for {selected?.hostname}</DialogTitle></DialogHeader>
+          {selected && (
+            <div className="space-y-4 text-sm">
+              <div>
+                <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Standard install</div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60 font-mono text-xs break-all">{selected.pixelHtml}</div>
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => { navigator.clipboard.writeText(selected.pixelHtml || ''); toast.success('Copied to clipboard') }}>Copy</Button>
+              </div>
+              <div>
+                <div className="text-xs uppercase tracking-widest text-muted-foreground mb-2">Google Tag Manager</div>
+                <div className="p-3 rounded-lg bg-background/50 border border-border/60 font-mono text-xs break-all">{selected.pixelHtmlGtm}</div>
+                <Button size="sm" variant="outline" className="mt-2" onClick={() => { navigator.clipboard.writeText(selected.pixelHtmlGtm || ''); toast.success('Copied to clipboard') }}>Copy</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+function SettingsTab({ user, refreshData }) {
+  const [me, setMe] = useState(null)
+  const [saKey, setSaKey] = useState('')
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const token = typeof window !== 'undefined' ? localStorage.getItem('bm_token') : null
+  const h = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+
+  useEffect(() => {
+    fetch('/api/admin/settings', { headers: h }).then(r => r.json()).then(d => { setMe(d); })
+  }, [])
+
+  const testKey = async () => {
+    if (!saKey.trim()) { toast.error('Enter a key first'); return }
+    setTesting(true); setTestResult(null)
+    const r = await fetch('/api/admin/settings/test-sa-key', { method: 'POST', headers: h, body: JSON.stringify({ searchAtlasApiKey: saKey.trim() }) })
+    const d = await r.json()
+    setTestResult(d)
+    setTesting(false)
+    if (d.ok) toast.success(`Key valid — ${d.projectCount} projects found`)
+    else toast.error('Invalid key')
+  }
+
+  const save = async () => {
+    setSaving(true)
+    const r = await fetch('/api/admin/settings', { method: 'PATCH', headers: h, body: JSON.stringify({ searchAtlasApiKey: saKey.trim() || null }) })
+    setSaving(false)
+    if (r.ok) {
+      toast.success('SearchAtlas key updated — refresh to see your projects')
+      setSaKey('')
+      const updated = await fetch('/api/admin/settings', { headers: h }).then(r => r.json())
+      setMe(updated)
+      refreshData && refreshData()
+    } else toast.error('Failed to save')
+  }
+
+  const clear = async () => {
+    if (!confirm('Remove your SearchAtlas API key? Your admin views will fall back to the shared/default key.')) return
+    const r = await fetch('/api/admin/settings', { method: 'PATCH', headers: h, body: JSON.stringify({ searchAtlasApiKey: null }) })
+    if (r.ok) {
+      toast.success('Key removed')
+      const updated = await fetch('/api/admin/settings', { headers: h }).then(r => r.json())
+      setMe(updated)
+      refreshData && refreshData()
+    }
+  }
+
+  return (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <Card className="bg-secondary/30 border-border/60">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Search className="w-4 h-4 text-blue-400" /> SearchAtlas API Key</CardTitle>
+          <CardDescription>Connect this admin account to a specific SearchAtlas account. All SearchAtlas, OTTO, Local SEO and dashboard data will use YOUR key.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div>
+            <Label className="text-xs">Current key</Label>
+            <div className="p-3 rounded-lg border border-border/60 bg-background/50 font-mono text-xs">
+              {me?.searchAtlasApiKeySet ? me.searchAtlasApiKey : <span className="text-muted-foreground italic">Not set — using shared default</span>}
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">New key</Label>
+            <Input type="password" value={saKey} onChange={e => setSaKey(e.target.value)} placeholder="sa_gAAAA…" className="font-mono text-xs" />
+            <div className="text-[11px] text-muted-foreground mt-1">Get from SearchAtlas → Settings → API</div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={testKey} disabled={testing || !saKey.trim()}>
+              {testing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />}
+              Test key
+            </Button>
+            <Button size="sm" onClick={save} disabled={saving || !saKey.trim()} className="bg-gradient-to-br from-blue-500 to-violet-500">Save</Button>
+            {me?.searchAtlasApiKeySet && <Button size="sm" variant="ghost" onClick={clear} className="text-rose-400 hover:text-rose-300">Remove</Button>}
+          </div>
+          {testResult && (
+            <div className={`p-3 rounded-lg text-sm border ${testResult.ok ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'}`}>
+              {testResult.ok ? `✓ Valid — ${testResult.projectCount} rank-tracker projects visible` : `✗ ${testResult.error || 'Invalid key'}`}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-secondary/30 border-border/60">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Users className="w-4 h-4 text-violet-400" /> Profile</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm">
+          <div><span className="text-muted-foreground">Name:</span> {me?.name}</div>
+          <div><span className="text-muted-foreground">Email:</span> {me?.email}</div>
+          <div><span className="text-muted-foreground">Company:</span> {me?.company || '—'}</div>
+          <div><span className="text-muted-foreground">Role:</span> <Badge className="ml-1">admin</Badge></div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
 function ContentGenius() {
   const [form, setForm] = useState({ keyword: '', targetAudience: '', tone: 'professional and confident', wordCount: 1500, businessContext: '' })
   const [loading, setLoading] = useState(false)
@@ -1226,14 +1511,16 @@ function AdminPortal({ user, go }) {
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList className="mb-6">
+        <TabsList className="mb-6 flex flex-wrap h-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="clients">Clients ({overview.stats.users})</TabsTrigger>
           <TabsTrigger value="audits">AI Audits ({overview.stats.audits})</TabsTrigger>
           <TabsTrigger value="contacts">Leads ({overview.stats.contacts})</TabsTrigger>
           <TabsTrigger value="searchatlas">SearchAtlas</TabsTrigger>
+          <TabsTrigger value="otto"><Cpu className="w-3 h-3 mr-1" />OTTO</TabsTrigger>
           <TabsTrigger value="localseo">Local SEO</TabsTrigger>
           <TabsTrigger value="content">Content Genius</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">

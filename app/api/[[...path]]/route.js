@@ -26,16 +26,39 @@ const llm = new OpenAI({
 const JWT_SECRET = process.env.JWT_SECRET || 'beyond-marketing-dev-secret-key'
 const SEARCHATLAS_KEY = process.env.SEARCHATLAS_API_KEY
 
-// SearchAtlas API helper
-async function saFetch(url, opts = {}) {
+// SearchAtlas API helper (accepts optional per-user key)
+async function saFetch(url, opts = {}, key = null) {
+  const useKey = key || SEARCHATLAS_KEY
   const r = await fetch(url, {
     ...opts,
-    headers: { 'X-API-Key': SEARCHATLAS_KEY, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    headers: { 'X-API-Key': useKey, 'Content-Type': 'application/json', ...(opts.headers || {}) },
   })
   const text = await r.text()
   let body
   try { body = JSON.parse(text) } catch { body = text }
   return { status: r.status, ok: r.ok, body }
+}
+
+// Resolve the SA key for a given user (their stored key, else the env fallback)
+async function getUserSaKey(userId) {
+  try {
+    const db = await getDb()
+    const u = await db.collection('users').findOne({ id: userId })
+    return u?.searchAtlasApiKey || SEARCHATLAS_KEY
+  } catch { return SEARCHATLAS_KEY }
+}
+
+// For the public report endpoint: try every admin's SA key until one finds the project hash.
+async function saFetchAnyAdmin(url) {
+  const db = await getDb()
+  const admins = await db.collection('users').find({ role: 'admin' }).toArray()
+  const keys = [SEARCHATLAS_KEY, ...admins.map(a => a.searchAtlasApiKey).filter(Boolean)]
+  const unique = [...new Set(keys.filter(Boolean))]
+  for (const k of unique) {
+    const r = await saFetch(url, {}, k)
+    if (r.ok) return { ...r, keyUsed: k }
+  }
+  return { ok: false, status: 502, body: { error: 'No working SearchAtlas key' } }
 }
 
 // Seed admin on first module load
@@ -258,10 +281,11 @@ Produce the audit JSON now.`
         { keyword: 'business growth strategy', position: 6, change: +3 },
       ]
 
-      // Try to pull real SearchAtlas project data (user's linked project, else first available)
+      // Try to pull real SearchAtlas project data using this user's key (if admin) or env fallback
       let searchAtlas = null
       try {
-        const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
+        const userKey = user?.searchAtlasApiKey || SEARCHATLAS_KEY
+        const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, userKey)
         if (sa.ok && sa.body.results?.length) {
           const linkedId = user?.searchAtlasProjectId
           const p = (linkedId && sa.body.results.find(x => x.id === linkedId)) || sa.body.results[0]
@@ -522,17 +546,25 @@ Produce the content brief JSON now.`
     }
 
     // ===== White-Label Public Report =====
-    // Public endpoint (no auth). Uses SearchAtlas public_share_hash as the key.
     if (path.startsWith('/report/') && method === 'GET') {
       const hash = path.split('/')[2]
       if (!hash) return json({ error: 'Missing hash' }, 400)
-      const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
-      if (!sa.ok) return json({ error: 'SearchAtlas unavailable' }, 502)
-      const project = (sa.body.results || []).find(p => p.public_share_hash === hash)
+
+      const db = await getDb()
+      // Try every admin's key until we find the project with this hash
+      const admins = await db.collection('users').find({ role: 'admin' }).toArray()
+      const keys = [...new Set([SEARCHATLAS_KEY, ...admins.map(a => a.searchAtlasApiKey).filter(Boolean)])]
+      let project = null
+      for (const k of keys) {
+        const sa = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, k)
+        if (sa.ok && sa.body.results) {
+          const found = sa.body.results.find(p => p.public_share_hash === hash)
+          if (found) { project = found; break }
+        }
+      }
       if (!project) return json({ error: 'Report not found' }, 404)
 
       // Try to match to a client for branding
-      const db = await getDb()
       const client = await db.collection('users').findOne({ searchAtlasProjectId: project.id })
 
       return json({
@@ -561,7 +593,9 @@ Produce the content brief JSON now.`
 
     // ===== SearchAtlas Proxy (server-side, key never leaks) =====
     if (path === '/searchatlas/projects' && method === 'GET') {
-      const r = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/')
+      const decoded = verifyToken(getToken(request))
+      const userKey = decoded ? await getUserSaKey(decoded.id) : null
+      const r = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, userKey)
       if (!r.ok) return json({ error: 'SearchAtlas error', detail: r.body }, r.status)
       const projects = (r.body.results || []).map(p => ({
         id: p.id,
@@ -583,14 +617,18 @@ Produce the content brief JSON now.`
     }
 
     if (path.startsWith('/searchatlas/projects/') && path.endsWith('/keywords') && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      const userKey = decoded ? await getUserSaKey(decoded.id) : null
       const id = path.split('/')[3]
-      const r = await saFetch(`https://keyword.searchatlas.com/api/v1/rank-tracker/${id}/keywords-details/`)
+      const r = await saFetch(`https://keyword.searchatlas.com/api/v1/rank-tracker/${id}/keywords-details/`, {}, userKey)
       if (!r.ok) return json({ error: 'SearchAtlas error', detail: r.body }, r.status)
       return json({ keywords: r.body.results || r.body })
     }
 
     if (path === '/searchatlas/gbp' && method === 'GET') {
-      const r = await saFetch('https://keyword.searchatlas.com/api/v3/google-business/')
+      const decoded = verifyToken(getToken(request))
+      const userKey = decoded ? await getUserSaKey(decoded.id) : null
+      const r = await saFetch('https://keyword.searchatlas.com/api/v3/google-business/', {}, userKey)
       if (!r.ok) return json({ error: 'SearchAtlas error', detail: r.body }, r.status)
       const businesses = (r.body.results || []).map(b => ({
         id: b.id,
@@ -609,6 +647,56 @@ Produce the content brief JSON now.`
         })),
       }))
       return json({ businesses })
+    }
+
+    // ===== OTTO — AI SEO Autopilot =====
+    if (path === '/searchatlas/otto' && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      const userKey = decoded ? await getUserSaKey(decoded.id) : null
+      const r = await saFetch('https://sa.searchatlas.com/api/v2/otto-projects/', {}, userKey)
+      if (!r.ok) return json({ error: 'OTTO error', detail: r.body }, r.status)
+      const otto = (r.body.results || []).map(o => ({
+        uuid: o.uuid,
+        hostname: o.hostname,
+        installed: o.pixel_tag_state,
+        installationMethod: o.installation_method,
+        cms: o.detected_cms,
+        installLabel: o.pixel_state_display?.label,
+        installStatus: o.pixel_state_display?.severity,
+        autopilotActive: o.autopilot_is_active,
+        engaged: o.is_engaged,
+        processingStatus: o.processing_status,
+        processingState: o.processing_state,
+        timeSavedMinutes: o.time_saved_total,
+        aiGradeOverall: o.ai_grade_overall,
+        aiGradeBefore: o.ai_grade_overall_before,
+        aiGradeDelta: o.ai_grade_overall_delta,
+        holisticScores: o.holistic_scores,
+        holisticScoresBefore: o.holistic_scores_before,
+        holisticScoresDelta: o.holistic_scores_delta,
+        afterSummary: o.after_summary,
+        pagesWithIssues: o.pages_with_issues,
+        lastCrawl: o.last_crawl,
+        lastAnalysis: o.last_analysis,
+        lastDeployedAt: o.last_deploy_event_timestamp,
+        nextAnalysisAt: o.next_analysis_at,
+        pixelHtml: o.pixel_html,
+        pixelHtmlGtm: o.pixel_html_gtm,
+        connected: o.connected_data,
+        knowledgeGraphId: o.knowledge_graph_id,
+        knowledgeGraphProgress: o.knowledge_graph_progress,
+        siteAuditId: o.site_audit,
+      }))
+      return json({ total: r.body.count, otto })
+    }
+
+    if (path.startsWith('/searchatlas/otto/') && method === 'GET') {
+      const decoded = verifyToken(getToken(request))
+      const userKey = decoded ? await getUserSaKey(decoded.id) : null
+      const uuid = path.split('/')[3]
+      const r = await saFetch(`https://sa.searchatlas.com/api/v2/otto-projects/${uuid}/`, {}, userKey)
+      if (!r.ok) return json({ error: 'OTTO error', detail: r.body }, r.status)
+      return json({ otto: r.body })
     }
 
     // ===== ADMIN =====
@@ -647,6 +735,40 @@ Produce the content brief JSON now.`
       if (path === '/admin/contacts' && method === 'GET') {
         const list = await db.collection('contacts').find({}).sort({ createdAt: -1 }).limit(100).toArray()
         return json({ contacts: list.map(c => ({ id: c.id, name: c.name, email: c.email, company: c.company, message: c.message, createdAt: c.createdAt })) })
+      }
+
+      if (path === '/admin/settings' && method === 'GET') {
+        const me = await db.collection('users').findOne({ id: decoded.id })
+        const k = me?.searchAtlasApiKey || ''
+        return json({
+          name: me?.name,
+          email: me?.email,
+          company: me?.company,
+          searchAtlasApiKey: k ? (k.slice(0, 6) + '••••••' + k.slice(-4)) : '',
+          searchAtlasApiKeySet: !!k,
+        })
+      }
+
+      if (path === '/admin/settings' && method === 'PATCH') {
+        const body = await request.json()
+        const $set = {}
+        if ('name' in body) $set.name = body.name
+        if ('company' in body) $set.company = body.company
+        if ('searchAtlasApiKey' in body) {
+          const k = (body.searchAtlasApiKey || '').trim()
+          $set.searchAtlasApiKey = k || null
+        }
+        await db.collection('users').updateOne({ id: decoded.id }, { $set })
+        return json({ ok: true })
+      }
+
+      if (path === '/admin/settings/test-sa-key' && method === 'POST') {
+        const body = await request.json()
+        const key = (body.searchAtlasApiKey || '').trim()
+        if (!key) return json({ error: 'Key required' }, 400)
+        const r = await saFetch('https://keyword.searchatlas.com/api/v1/rank-tracker/', {}, key)
+        if (!r.ok) return json({ ok: false, error: 'Invalid key' }, 200)
+        return json({ ok: true, projectCount: r.body.count || (r.body.results || []).length })
       }
 
       if (path.startsWith('/admin/clients/') && method === 'PATCH') {
